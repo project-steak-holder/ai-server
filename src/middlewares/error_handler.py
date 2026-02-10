@@ -1,5 +1,4 @@
 import json
-import traceback
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
@@ -53,7 +52,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
         if status_code >= 500:
             error_context["exception_type"] = type(exc).__name__
-            error_context["stack_trace"] = traceback.format_exc()
 
         if error_details:
             error_context["error_details"] = json.dumps(error_details)
