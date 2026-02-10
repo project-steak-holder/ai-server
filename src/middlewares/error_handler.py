@@ -38,10 +38,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
 
     wide_event = getattr(request.state, "wide_event", None)
-    correlation_id = (
-        getattr(wide_event, "correlation_id", None) or request.state.correlation_id
-    )
-    response.headers["X-Correlation-ID"] = correlation_id
+    correlation_id = getattr(wide_event, "correlation_id", None)
+    if correlation_id:
+        response.headers["X-Correlation-ID"] = correlation_id
 
     if wide_event:
         error_context = {
@@ -75,7 +74,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             error=error_context,
             request_metadata=request_context,
         )
-        wide_event.emit(status_code, "error", response)
+        wide_event.emit(status_code, "error", exc)
     else:
         # TODO: Fallback log the error if wide_event is not available. This should never happen.
         print(
