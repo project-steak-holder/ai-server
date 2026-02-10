@@ -254,6 +254,77 @@ A complete wide event looks like:
 - [Stripe's Canonical Log Lines](https://stripe.com/blog/canonical-log-lines)
 - [Observability Wide Events 101](https://boristane.com/blog/observability-wide-events-101/)
 
+## Exception Handling
+
+This project uses a structured exception system built on `AppException` for consistent error handling across the API. Custom exceptions automatically integrate with the global exception handler and wide event logging.
+
+### Creating Custom Exceptions
+
+To create a new exception type, extend `AppException` and provide default values:
+
+#### Example: Simple Not Found Exception
+
+```python
+# src/exceptions/conversation_exceptions.py
+from src.exceptions.base_exceptions import AppException
+
+class ConversationNotFoundError(AppException):
+    """Raised when a conversation does not exist."""
+
+    def __init__(self, conversation_id: str):
+        super().__init__(
+            status_code=404,
+            error="CONVERSATION_NOT_FOUND",
+            message=f"Conversation with ID '{conversation_id}' does not exist",
+            details={"conversation_id": conversation_id}
+        )
+```
+
+### Using Custom Exceptions
+
+Once defined, raise your custom exceptions anywhere in your code:
+
+```python
+from src.exceptions.conversation_exceptions import ConversationNotFoundError
+
+def some_function():
+    await conversation = conversationrepo.find(conversation_id)
+    if conversation is None:
+        raise ConversationNotFoundError(conversation_id)
+
+```
+
+### Automatic Error Response
+
+The global exception handler (`src/middlewares/error_handler.py`) automatically converts your custom exceptions into proper HTTP responses:
+
+**When you raise:**
+
+```python
+raise ConversationNotFoundError("conv_12345")
+```
+
+**The client receives:**
+
+```json
+{
+  "error": "CONVERSATION_NOT_FOUND",
+  "message": "Conversation with ID 'conv_12345' does not exist",
+  "details": {
+    "conversation_id": "conv_12345"
+  }
+}
+```
+
+**HTTP Status:** `404 Not Found`
+
+**Headers:**
+
+```
+X-Correlation-ID: 7f3d2a8b-4c1e-9f6d-3a2b-1c4e5f6d7a8b
+Content-Type: application/json
+```
+
 ## API Endpoints
 
 ### POST /api/v1/generate
