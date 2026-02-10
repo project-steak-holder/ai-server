@@ -34,6 +34,7 @@ This backend serves as the core infrastructure for an elicitation practice syste
    git clone <repo-url>
    cd ai-server
    uv sync  # Install dependencies and create virtual environment
+   pre-commit install  # Setup pre-commit hooks
    ```
 
 2. **Configure environment variables:**
