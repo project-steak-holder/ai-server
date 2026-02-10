@@ -14,6 +14,7 @@ Backend REST API for an AI-powered Requirements Elicitation Practice System. Stu
 ## Project Purpose
 
 This backend serves as the core infrastructure for an elicitation practice system where:
+
 - Students submit messages to an AI stakeholder
 - The system maintains conversation history and context
 - An AI provider generates stakeholder responses
@@ -30,6 +31,7 @@ This backend serves as the core infrastructure for an elicitation practice syste
 ### Setup
 
 1. **Clone and setup environment:**
+
    ```bash
    git clone <repo-url>
    cd ai-server
@@ -59,21 +61,23 @@ This backend serves as the core infrastructure for an elicitation practice syste
 
 All configuration is managed through a `.env` file in the project root. An example file is provided at `.env.example`.
 
-| Variable | Description | Required |
-|----------|---|---|
-| `DATABASE_URL` | Neon PostgreSQL connection string (format: `postgresql://user:password@host/database?sslmode=require`) | Yes |
-| `AI_PROVIDER_API_KEY` | API key for your AI provider | Yes |
-| `AI_PROVIDER_BASE_URL` | Custom base URL for AI provider (uses provider default if not set) | No |
+| Variable               | Description                                                                                            | Required |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ | -------- |
+| `DATABASE_URL`         | Neon PostgreSQL connection string (format: `postgresql://user:password@host/database?sslmode=require`) | Yes      |
+| `AI_PROVIDER_API_KEY`  | API key for your AI provider                                                                           | Yes      |
+| `AI_PROVIDER_BASE_URL` | Custom base URL for AI provider (uses provider default if not set)                                     | No       |
 
 ### Getting Your Configuration
 
 **Neon Database URL:**
+
 1. Create account at https://console.neon.tech/
 2. Create a new project
 3. Copy the connection string from the dashboard
 4. Set as `DATABASE_URL` in `.env`
 
 **AI Provider API Key:**
+
 - Obtain from your AI provider (OpenAI, Anthropic, etc.)
 - Set as `AI_PROVIDER_API_KEY` in `.env`
 
@@ -132,6 +136,7 @@ alembic upgrade head
 Accept a user message in a conversation and return AI stakeholder response.
 
 **Request:**
+
 ```json
 {
   "conversation_id": "string",
@@ -141,6 +146,7 @@ Accept a user message in a conversation and return AI stakeholder response.
 ```
 
 **Response:**
+
 ```json
 {
   "conversation_id": "string",
