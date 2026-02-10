@@ -40,18 +40,20 @@ This backend serves as the core infrastructure for an elicitation practice syste
 
 2. **Configure environment variables:**
    Copy the example environment file and update with your values:
+
    ```bash
    cp .env.example .env
    ```
-   
+
    Then edit `.env` with your configuration:
    - `DATABASE_URL` - Your Neon PostgreSQL connection string
    - `AI_PROVIDER_API_KEY` - Your AI provider's API key
    - `AI_PROVIDER_BASE_URL` - (Optional) Custom base URL for your AI provider
 
 3. **Start the development server:**
+
    ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
    The API will be available at `http://localhost:8000`
@@ -85,24 +87,28 @@ All configuration is managed through a `.env` file in the project root. An examp
 
 ```
 ai-server/
-├── main.py                      # FastAPI app entry point
-├── config.py                    # Environment variables & settings
-├── pyproject.toml               # Dependencies
-├── .env.example                 # Example environment configuration
-│
-├── app/
-│   ├── routers/                 # API endpoints
+├── alembic/                     # Database migrations
+├── src/
+│   ├── __init__.py
+│   ├── main.py                  # FastAPI app entry point
+│   ├── config/                  # Environment variables & settings
+│   ├── controllers/             # API endpoints (routers)
 │   ├── services/                # Business logic & orchestration
+│   ├── schemas/                 # Pydantic request/response models
+│   ├── repositories/            # Data access layer
+│   ├── models/                  # Database models (SQLAlchemy)
 │   ├── ai/                      # AI provider abstraction
-│   ├── data/                    # Database models & repositories
-│   ├── schemas/                 # Pydantic request/response schemas
-│   ├── auth/                    # Authentication & authorization
-│   ├── middleware/              # Error handling, logging, rate limits
-│   └── utils/                   # Validation utilities
-│
+│   ├── middlewares/             # Error handling, logging, rate limits
+│   ├── dependencies/            # FastAPI dependency injection
+│   ├── exceptions/              # Custom exception classes
+│   └── utils/                   # Validation & helper functions
 ├── tests/                       # Unit & integration tests
-│
-└── docs/                        # Documentation
+├── scripts/                     # Database seeding & utility scripts
+├── ruff.yaml                    # Linter configuration
+├── .env.example                 # Example environment configuration
+├── .env.local                   # Local development environment
+├── .env                         # Environment configuration (gitignored)
+└── pyproject.toml               # Dependencies
 ```
 
 ## Development
@@ -111,7 +117,7 @@ ai-server/
 
 ```bash
 pytest tests/ -v                    # Run tests
-pytest tests/ -v --cov=app         # Run tests with coverage report (requires pytest-cov)
+pytest tests/ -v --cov=src         # Run tests with coverage report (requires pytest-cov)
 ```
 
 ### Adding Dependencies
