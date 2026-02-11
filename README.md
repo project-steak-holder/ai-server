@@ -8,7 +8,6 @@ Backend REST API for an AI-powered Requirements Elicitation Practice System. Stu
 - **FastAPI 0.128.4+** - REST API framework
 - **Pydantic AI Slim** - AI integration with OpenAI backend
 - **Neon PostgreSQL** - Serverless Postgres database
-- **uv** - Package manager
 - **SQLAlchemy** - ORM for database queries
 
 ## Project Purpose
@@ -24,9 +23,11 @@ This backend serves as the core infrastructure for an elicitation practice syste
 
 ### Prerequisites
 
-- Python 3.13+
-- Neon PostgreSQL account (https://console.neon.tech/)
+- [Python 3.13+](https://www.python.org/) 
+- [uv](https://docs.astral.sh/uv/)
+- [Neon PostgreSQL account](https://console.neon.tech/)
 - AI provider API key (OpenAI, Anthropic, etc.)
+
 
 ### Setup
 
@@ -67,8 +68,10 @@ All configuration is managed through a `.env` file in the project root. An examp
 | Variable               | Description                                                                                            | Required |
 | ---------------------- | ------------------------------------------------------------------------------------------------------ | -------- |
 | `DATABASE_URL`         | Neon PostgreSQL connection string (format: `postgresql://user:password@host/database?sslmode=require`) | Yes      |
-| `AI_PROVIDER_API_KEY`  | API key for your AI provider                                                                           | Yes      |
-| `AI_PROVIDER_BASE_URL` | Custom base URL for AI provider (uses provider default if not set)                                     | No       |
+| `AI_PROVIDER_API_KEY`  | API key for your AI provider (OpenAI, Anthropic, etc.)                                                 | Yes      |
+| `AI_PROVIDER_BASE_URL` | Custom base URL for AI provider (uses provider default if not set)                                     | Yes      |
+| `AI_PROVIDER_MODEL`    | Model name or identifier to use with the AI provider (e.g. `gpt-4o-mini`, `claude-2`)                  | Yes      |
+| `AUTH_URL`             | Neon Auth base URL (used by Neon Auth SDK / Data API)                                                  | No       |
 
 ### Getting Your Configuration
 
@@ -83,6 +86,12 @@ All configuration is managed through a `.env` file in the project root. An examp
 
 - Obtain from your AI provider (OpenAI, Anthropic, etc.)
 - Set as `AI_PROVIDER_API_KEY` in `.env`
+**AI Provider Configuration:**
+
+- Obtain an API key from your AI provider (OpenAI, Anthropic, etc.) and set `AI_PROVIDER_API_KEY` in `.env`.
+- Set `AI_PROVIDER_BASE_URL` in `.env` to the provider endpoint.
+- Specify the model identifier to use with `AI_PROVIDER_MODEL` (e.g. `gpt-4o-mini`, `claude-2`).
+- If using Neon Auth/Data API workflows, set `AUTH_URL` to your Neon Auth base URL so the SDK can retrieve JWTs for Data API calls.
 
 ## Project Structure
 
