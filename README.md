@@ -28,7 +28,6 @@ This backend serves as the core infrastructure for an elicitation practice syste
 - [Neon PostgreSQL account](https://console.neon.tech/)
 - AI provider API key (OpenAI, Anthropic, etc.)
 
-
 ### Setup
 
 1. **Clone and setup environment:**
