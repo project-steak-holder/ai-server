@@ -12,8 +12,8 @@ logging.getLogger("starlette.middleware.errors").setLevel(logging.CRITICAL)
 # Setup FastAPI app and include middleware and exception handler
 app = FastAPI()
 app.add_exception_handler(Exception, global_exception_handler)
-app.add_middleware(EventMiddleware)
 app.add_middleware(CorrelationIDMiddleware)
+app.add_middleware(EventMiddleware)
 app.include_router(ai_router)
 
 
