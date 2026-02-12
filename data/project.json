@@ -1,0 +1,34 @@
+{
+  "project_name": "Golden Bikes Rental System",
+  "business_summary": "Golden Bikes is a long-standing bike rental shop in Golden, Colorado, experiencing increased business volume. The business needs an automated system to manage rentals, inventory, maintenance, payments, customer self-service, and management reporting.",
+  "requirements": [
+    {"id": "R1", "category": "rental", "requirement": "I want to rent bikes by the hour or by the day, so that I can support both short and full-day rentals."},
+    {"id": "R2", "category": "inventory", "requirement": "I want to track individual bikes and their availability, so that I know which bikes can be rented."},
+    {"id": "R3", "category": "maintenance", "requirement": "I want to remove bikes from rental rotation for maintenance, so that unsafe or damaged bikes are not rented."},
+    {"id": "R4", "category": "platform", "requirement": "I want the system to be available on web and mobile, so that customers can make reservations anywhere."},
+    {"id": "R5", "category": "inventory", "requirement": "I want to offer different bike models for different rider needs, so that customers can choose the right bike."},
+    {"id": "R6", "category": "inventory", "requirement": "I want customers to see available bike inventory, so that they can make informed reservations."},
+    {"id": "R7", "category": "search", "requirement": "I want customers to search bikes by specific characteristics, so that they can quickly find suitable bikes."},
+    {"id": "R8", "category": "reservation", "requirement": "I want customers to reserve multiple bikes in one reservation, so that groups and families can rent together."},
+    {"id": "R9", "category": "payment", "requirement": "I want customers to pay with a credit card, so that payments are secure and efficient."},
+    {"id": "R10", "category": "payment", "requirement": "I want to place a hold on a customer’s credit card, so that I can charge for damage or non-returned bikes."},
+    {"id": "R11", "category": "payment", "requirement": "I want to bill the credit card only after bikes are returned, so that charges are accurate."},
+    {"id": "R12", "category": "reservation", "requirement": "I want customers to make reservations at an in-store kiosk, so that walk-in customers are supported."},
+    {"id": "R13", "category": "kiosk", "requirement": "I want the kiosk to support card swiping, so that customers can complete reservations quickly."},
+    {"id": "R14", "category": "pickup", "requirement": "I want customers to pick up bikes without employee assistance, so that staff workload is reduced."},
+    {"id": "R15", "category": "reservation", "requirement": "I want customers to change or cancel reservations up to 24 hours in advance, so that inventory planning is reliable."},
+    {"id": "R16", "category": "return", "requirement": "I want employees to process bike returns, so that bikes are inspected and checked back in properly."},
+    {"id": "R17", "category": "payment", "requirement": "I want to automatically calculate late return charges, so that overages are billed consistently."},
+    {"id": "R18", "category": "payment", "requirement": "I want to apply damage fees after inspecting returned bikes, so that repair costs are recovered."},
+    {"id": "R19", "category": "payment", "requirement": "I want to set fees for reservation changes and cancellations, so that policies reflect business needs."},
+    {"id": "R20", "category": "inventory", "requirement": "I want employees to return bikes to inventory within 10–20 minutes when possible, so that availability stays accurate."},
+    {"id": "R21", "category": "pricing", "requirement": "I want to set bike rental rates, so that pricing can be adjusted over time."},
+    {"id": "R22", "category": "pricing", "requirement": "I want different bike categories to have different rental rates, so that pricing reflects value."},
+    {"id": "R23", "category": "inventory", "requirement": "I want to add new bikes to inventory, so that the business can grow."},
+    {"id": "R24", "category": "reporting", "requirement": "I want a summary report that aggregates other reports, so that I can quickly understand overall performance."},
+    {"id": "R25", "category": "reporting", "requirement": "I want daily, weekly, and monthly rental reports by category, so that I can track trends."},
+    {"id": "R26", "category": "reporting", "requirement": "I want maintenance reports by individual bike, so that recurring issues can be identified."},
+    {"id": "R27", "category": "reporting", "requirement": "I want rental reports by category that drill down by model, so that I can make informed purchasing decisions."}
+  ]
+}
+

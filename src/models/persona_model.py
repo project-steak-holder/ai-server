@@ -13,40 +13,32 @@ contains:
 - placeholder for request message
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List
 
 
 class ExpertiseLevel(BaseModel):
     business: str
     technology: str
-
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class PersonalityFocus(BaseModel):
     can_tangent: bool
     refocus_easily: bool
-
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class Personality(BaseModel):
     tone: List[str]
     professionalism: str
     focus: PersonalityFocus
-
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class CommunicationRules(BaseModel):
     avoid: List[str]
-
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class Persona(BaseModel):
@@ -58,6 +50,4 @@ class Persona(BaseModel):
     expertise_level: ExpertiseLevel
     personality: Personality
     communication_rules: CommunicationRules
-
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")

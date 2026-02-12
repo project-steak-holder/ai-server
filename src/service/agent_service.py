@@ -11,6 +11,8 @@ from src.models.llm_query_model import LlmQuery
 from src.models.persona_model import Persona
 from src.models.project_model import Project
 from src.models.message_model import Message
+from src.service.persona_service import PersonaService
+from src.service.project_service import ProjectService
 
 class AgentService(BaseModel):
 
@@ -19,7 +21,7 @@ class AgentService(BaseModel):
     history: Optional[list[Message]] = None
 
     # received from frontend via controller
-    request: Optional[str]
+    request: Optional[str] = None
 
     # sent to backend LLM
     llm_query: Optional[LlmQuery] = None
@@ -38,16 +40,20 @@ class AgentService(BaseModel):
         return self.request
 
     def get_llm_query(self) -> Optional[LlmQuery]:
-        return self.llmQuery
+        return self.llm_query
 
     # load various context models/data
-    def set_persona(self, persona: Persona):
-        self.persona = persona
+    def load_persona(self):
+        service = PersonaService()
+        service.load_persona()
+        self.persona = PersonaService.get_persona()
 
-    def set_project(self, project: Project):
-        self.project = project
+    def load_project(self):
+        service = ProjectService()
+        service.load_project()
+        self.project = ProjectService.get_project()
 
-    def set_history(self, history: list[Message]):
+    def load_history(self, history: list[Message]):
         self.history = history
 
     def set_request(self, request: str):
@@ -63,7 +69,7 @@ class AgentService(BaseModel):
 
 
     # assemble context model for LLM query
-    def build_query(self,
+    def build_llm_query(self,
                     request: str,
                     history: list[Message],
                     persona: Persona,
@@ -80,9 +86,9 @@ class AgentService(BaseModel):
         pass
 
 
-    # send query to LLM via adapter layer
-    def send_query(self, llm_query: LlmQuery):
-        pass
+
+    # main orchestrator method here!!!
+
 
 
 
