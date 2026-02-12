@@ -12,7 +12,7 @@ async def generate(payload: GenerateRequest) -> GenerateResponse:
     now = datetime.now(timezone.utc)
     return GenerateResponse(
         conversation_id=payload.conversation_id,
-        content=payload.content,
+        content="AI response here",
         type=MessageType.ai,
         created_at=now,
         updated_at=now,
