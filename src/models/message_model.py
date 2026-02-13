@@ -9,10 +9,10 @@ contains:
 - conversationID
 - content
 """
-
+from typing import Optional
 from pydantic import BaseModel
 
 class Message(BaseModel):
-    messageID: str
+    messageID: Optional[str]
     conversationID: str
     content: str

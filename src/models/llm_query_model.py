@@ -11,7 +11,7 @@ contains:
 """
 
 from pydantic import BaseModel
-from typing import Optional, List, Any
+from typing import Optional, List
 
 from src.models.persona_model import Persona
 from src.models.project_model import Project
@@ -20,6 +20,6 @@ from src.models.message_model import Message
 
 class LlmQuery(BaseModel):
     request: Optional[str]
-    history: Optional[List[Message]]
+    history: Optional[List[Message]] = None  # <-remove "None" once persistence implemented
     persona: Optional[Persona]
     project: Optional[Project]
