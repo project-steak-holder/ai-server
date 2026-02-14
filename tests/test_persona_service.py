@@ -9,8 +9,10 @@ from src.service.persona_service import PersonaService
 from src.models.persona_model import Persona
 
 
-# test setting filepath as env variable
+
 def test_init_uses_env_var(monkeypatch):
+    """ test setting filepath as env variable
+    """
     # set env variable
     monkeypatch.setenv("PERSONA_FILE", "custom/path/persona.json")
     service = PersonaService()
@@ -18,8 +20,10 @@ def test_init_uses_env_var(monkeypatch):
     assert service.file_path == "custom/path/persona.json"
 
 
-# test default filepath used when env variable not set
+
 def test_init_uses_default_when_no_env(monkeypatch):
+    """ test default filepath used when env variable not set
+    """
     # ensure env variable not set
     monkeypatch.delenv("PERSONA_FILE", raising=False)
     service = PersonaService()
@@ -27,8 +31,10 @@ def test_init_uses_default_when_no_env(monkeypatch):
     assert service.file_path == "data/persona.json"
 
 
-# test loading persona from default file
+
 def test_load_persona_default(monkeypatch):
+    """ test loading persona from default file
+    """
     # ensure env variable not set -> default file used
     monkeypatch.delenv("PERSONA_FILE", raising=False)
     service = PersonaService()
@@ -38,8 +44,10 @@ def test_load_persona_default(monkeypatch):
     assert persona.role == "Owner, Golden Bikes"
 
 
-# test loading persona from custom file path set in env variable
+
 def test_load_persona_from_file(monkeypatch, tmp_path):
+    """ test loading persona from custom file path set in env variable
+    """
     # create test persona file
     persona_data = {
         "name": "Test Persona",
@@ -74,8 +82,10 @@ def test_load_persona_from_file(monkeypatch, tmp_path):
     assert persona.role == "Test Role"
 
 
-# test get_persona returns loaded persona
-def test_get_persona(monkeypatch):
+
+def test_get_persona():
+    """ test get_persona returns loaded persona
+    """
     service = PersonaService()
     persona = service.load_persona()
     assert service.get_persona() == persona

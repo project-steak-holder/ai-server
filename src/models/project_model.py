@@ -2,7 +2,7 @@
 Project Steak-Holder
 Project model
 
-can be overridden by applying another persona
+can be overridden by applying another project
 with DI at container launch
 
 contains:
@@ -17,6 +17,8 @@ from typing import List
 from src.models.requirement_model import Requirement
 
 class Project(BaseModel):
+    """ model for project stakeholder project details
+    """
     project_name: str
     business_summary: str
     requirements: List[Requirement]

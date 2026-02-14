@@ -5,6 +5,9 @@ from unittest.mock import patch, MagicMock
 from src.adapter.llama_adapter import LlamaAdapter
 
 def test_send_query_success():
+    """ test successful query to oLLaMA API
+        should return expected response dictionary
+    """
     # prepare fake payload and expected response
     payload = {"request": "Test message", "persona": {"name": "Test"}, "project": {"project_name": "Test Project"}}
     expected_response = {"message": "LLM response"}

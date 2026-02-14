@@ -18,20 +18,26 @@ class ProjectService:
 
 
     def __init__(self):
-        # override with environment variable or default to /data/project.json or
+        """ override with environment variable
+            or default to /data/project.json
+        """
         self.file_path = (os.environ.get("PROJECT_FILE")
                           or "data/project.json")
 
 
-    # loads project from file path set in init
+
     def load_project(self) -> Project:
+        """ loads project from file path set in init
+        """
         with open(self.file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         ProjectService.project = Project(**data)
         return ProjectService.project
 
 
-    # fetch project from service
+
     @staticmethod
     def get_project() -> Optional[Project]:
+        """ fetch project from service
+        """
         return ProjectService.project

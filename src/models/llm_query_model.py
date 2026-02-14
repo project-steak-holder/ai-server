@@ -2,12 +2,6 @@
 Project Steak-Holder
 model definition for context model
 intended to package all relevant information
-
-contains:
-- persona
-- project details
-- conversation history
-- placeholder for request message
 """
 
 from pydantic import BaseModel
@@ -19,6 +13,12 @@ from src.models.message_model import Message
 
 
 class LlmQuery(BaseModel):
+    """model contains:
+                    - persona
+                    - project details
+                    - conversation history
+                    - placeholder for request message
+    """
     request: Optional[str]
     history: Optional[List[Message]] = None  # <-remove "None" once persistence implemented
     persona: Optional[Persona]

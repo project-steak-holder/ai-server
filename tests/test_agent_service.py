@@ -6,17 +6,15 @@ unit tests for agent_service
 from unittest.mock import patch
 
 from src.service.agent_service import AgentService
-from src.service.persona_service import PersonaService
-from src.service.project_service import ProjectService
 from src.models.persona_model import Persona
 from src.models.project_model import Project
 from src.models.message_model import Message
-from src.models.llm_query_model import LlmQuery
 
 
 
-# test loading persona from service / default file
 def test_load_persona(monkeypatch):
+    """ test loading persona from service / default file
+    """
     # make sure environment variable not set -> default file used
     monkeypatch.delenv("PERSONA_FILE", raising=False)
     agent = AgentService()
@@ -27,8 +25,10 @@ def test_load_persona(monkeypatch):
 
 
 
-# test loading project from service / default file
+
 def test_load_project(monkeypatch):
+    """ test loading project from service / default file
+    """
     # make sure environment variable not set -> default file used
     monkeypatch.delenv("PROJECT_FILE", raising=False)
     agent = AgentService()
@@ -37,9 +37,10 @@ def test_load_project(monkeypatch):
     assert agent.project.project_name == "Golden Bikes Rental System"
 
 
-# will need updating!!!
-# test loading history
+# will need updating!!!                                                     <---------<<<<<<<
 def test_load_history():
+    """ # test loading history
+    """
     agent = AgentService()
     history = [
         Message(messageID="M1", conversationID="C3", content="test message 1"),
@@ -49,9 +50,10 @@ def test_load_history():
     assert agent.history == history
 
 
-# will need updating!!!
-# test capturing request
+
 def test_set_request():
+    """ test capturing request
+    """
     agent = AgentService()
     request = "What are the project requirements?"
     agent.set_request(request)
@@ -59,8 +61,10 @@ def test_set_request():
 
 
 
-# test extracting message
+
 def test_extract_message():
+    """ test extracting message
+    """
     # main case - message key exists
     payload = {"message": "This is a test message."}
     extracted_message = AgentService.extract_message(payload)
@@ -75,8 +79,10 @@ def test_extract_message():
     assert AgentService.extract_message(payload) == ""
 
 
-# test validating context -> should fail assertions if any context missing
 def test_validate_context():
+    """ test validating context
+        should fail assertions if any context missing
+    """
     agent = AgentService()
 
     # no context set -> should be false
@@ -92,7 +98,9 @@ def test_validate_context():
 
     # set project -> should be false (history missing)
     agent.load_project()
-    """assert not agent.validate_context()
+
+    # set project -> should be false (history missing)
+    assert not agent.validate_context()
 
     # set history -> should be false
     history = [
@@ -105,13 +113,15 @@ def test_validate_context():
 
 
 
-# test building llm query -> should include all 4 context components
 def test_build_llm_query(monkeypatch):
-    # Ensure environment variables are not set so default files are used
+    """ test building llm query
+        should include all 4 context components
+    """
+    # ensure environment variables are not set so default files are used
     monkeypatch.delenv("PERSONA_FILE", raising=False)
     monkeypatch.delenv("PROJECT_FILE", raising=False)
 
-    # Set up agent with all context
+    # set up agent with all context
     agent = AgentService()
     agent.load_persona()
     agent.load_project()
@@ -123,7 +133,7 @@ def test_build_llm_query(monkeypatch):
     agent.load_history(history)
     agent.set_request("What are the project requirements?")
 
-    # Build query (now serialized as dict)
+    # build query (now serialized as dict)
     agent.build_llm_query(
         request=agent.request,
         history=agent.history,
@@ -131,7 +141,7 @@ def test_build_llm_query(monkeypatch):
         project=agent.project
     )
 
-    # Assert llm_query is a dict and contains expected keys/values
+    # assert llm_query is a dict and contains expected keys/values
     assert isinstance(agent.llm_query, dict)
     assert agent.llm_query["request"] == "What are the project requirements?"
     assert agent.llm_query["persona"]["name"] == "Owen"
@@ -142,8 +152,10 @@ def test_build_llm_query(monkeypatch):
 
 
 
-# test persisting message to DB
+
 def test_persist_message():
+    """ test persisting message to DB
+    """
     agent = AgentService()
     agent.set_conversationID("conv-xyz")
     test_content = "This is a test message."
@@ -156,9 +168,11 @@ def test_persist_message():
 
 
 
-# test calling LLM via adapter
-# should return response dictionary
+
 def test_call_llm():
+    """ test calling LLM via adapter
+        should return response dictionary
+    """
     agent = AgentService()
     # test request dictionary
     test_query = {
@@ -179,9 +193,11 @@ def test_call_llm():
 
 
 
-# tests main orchestrator method -> process_agent_query()
-# using mocked resources
+
 def test_process_agent_query(monkeypatch):
+    """ tests main orchestrator method: process_agent_query()
+        using mocked resources
+    """
     agent = AgentService()
     # mock resources
     req_payload = {

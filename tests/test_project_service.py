@@ -9,8 +9,9 @@ from src.service.project_service import ProjectService
 from src.models.project_model import Project
 
 
-# test setting filepath as env variable
 def test_init_uses_env_var(monkeypatch):
+    """ test setting filepath as env variable
+    """
     # set env variable
     monkeypatch.setenv("PROJECT_FILE", "custom/path/project.json")
     service = ProjectService()
@@ -19,8 +20,9 @@ def test_init_uses_env_var(monkeypatch):
 
 
 
-# test default filepath used when env variable not set
 def test_init_uses_default_when_no_env(monkeypatch):
+    """ test default filepath used when env variable not set
+    """
     # ensure env variable not set
     monkeypatch.delenv("PROJECT_FILE", raising=False)
     service = ProjectService()
@@ -29,8 +31,9 @@ def test_init_uses_default_when_no_env(monkeypatch):
 
 
 
-# test loading project from default file
 def test_load_project_default(monkeypatch):
+    """ test loading project from default file
+    """
     # ensure env variable not set -> default file used
     monkeypatch.delenv("PROJECT_FILE", raising=False)
     service = ProjectService()
@@ -41,8 +44,9 @@ def test_load_project_default(monkeypatch):
 
 
 
-# test loading project from custom file path set in env variable
 def test_load_project_from_file(monkeypatch, tmp_path):
+    """ test loading project from custom file path set in env variable
+    """
     # test project
     project_data = {
         "project_name": "Test Project",
@@ -73,8 +77,9 @@ def test_load_project_from_file(monkeypatch, tmp_path):
 
 
 
-# test get_project returns loaded project
-def test_get_project(monkeypatch):
+def test_get_project():
+    """ test get_project returns loaded project
+    """
     service = ProjectService()
     project = service.load_project()
     assert service.get_project() == project
