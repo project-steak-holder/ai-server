@@ -1,5 +1,6 @@
 import logging
 from fastapi import FastAPI
+from src.controllers.ai import router as ai_router
 from src.middlewares.correlation_id import CorrelationIDMiddleware
 from src.middlewares.error_handler import global_exception_handler
 from src.middlewares.events import EventMiddleware
@@ -13,8 +14,19 @@ app = FastAPI()
 app.add_exception_handler(Exception, global_exception_handler)
 app.add_middleware(CorrelationIDMiddleware)
 app.add_middleware(EventMiddleware)
+app.include_router(ai_router)
 
 
 @app.get("/")
 async def main():
     return "Hello from ai-server!"
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+async def ready():
+    return {"status": "ok"}
