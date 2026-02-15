@@ -17,8 +17,11 @@ config = context.config
 
 # Setups alembic to use .env variables for database connection
 database_url = os.getenv("DATABASE_URL")
+
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
+else:
+    raise ValueError("DATABASE_URL environment variable is not set")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -49,10 +52,10 @@ def include_object(obj, name, type_, reflected, compare_to):
 
     # Exclude columns, indexes, and constraints of tables that are not managed by this service
     if type_ in ("column", "index", "foreign_key_constraint", "unique_constraint"):
-        parent_table = obj.table.name if hasattr(obj, "table") else None
+        parent_table = getattr(getattr(obj, "table", None), "name", None)
         return parent_table in MANAGED_TABLES
 
-    return True
+    return False
 
 
 def run_migrations_offline() -> None:
