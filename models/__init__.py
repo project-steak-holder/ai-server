@@ -27,36 +27,12 @@ class MessageType(PyEnum):
     AI = "AI"
 
 
-class User(Base):
-    __tablename__ = "user"
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    email = Column(String, nullable=False, unique=True)
-    emailVerified = Column(Boolean, nullable=False, default=False)
-    image = Column(String)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updatedAt = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
-        nullable=False,
-    )
+
     conversations = relationship("Conversation", back_populates="user")
     messages = relationship("Message", back_populates="user")
 
 
-class Conversation(Base):
-    __tablename__ = "conversation"
-    id = Column(String, primary_key=True)
-    user_id = Column(String, ForeignKey("user.id"), nullable=False)
-    name = Column(String, nullable=False)
-    createdAt = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updatedAt = Column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
-        nullable=False,
-    )
+
     user = relationship("User", back_populates="conversations")
     messages = relationship("Message", back_populates="conversation")
 
