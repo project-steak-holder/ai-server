@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
+from uuid import uuid4
 
 from src.models.conversation import Conversation
 from src.models.message import Message, MessageType
@@ -18,7 +19,7 @@ def test_conversation_creation(db_session):
 
 
 def test_conversation_requires_valid_user_fk(db_session):
-    conv = Conversation(name="Orphan Conversation", user_id="missing-user-id")
+    conv = Conversation(name="Orphan Conversation", user_id=uuid4())
     db_session.add(conv)
     with pytest.raises(IntegrityError):
         db_session.commit()

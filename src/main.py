@@ -1,12 +1,14 @@
 """MSSE692 AI Server - FastAPI Backend for Conversation AI."""
 
 from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 
 from database import engine, get_db
-from src.models import Base, Conversation
+from src.controllers.ai import router as ai_router
+from src.models import Base, Conversation, Message, User
 from src.middlewares.correlation_id import CorrelationIDMiddleware
 from src.middlewares.error_handler import global_exception_handler
 from src.middlewares.events import EventMiddleware
@@ -27,8 +29,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_exception_handler(Exception, global_exception_handler)
-app.add_middleware(EventMiddleware)
 app.add_middleware(CorrelationIDMiddleware)
+app.add_middleware(EventMiddleware)
+app.include_router(ai_router)
 
 
 @app.get("/")
@@ -46,29 +49,55 @@ async def ready():
     return {"status": "ok"}
 
 
-@app.post("/conversations/")
-async def create_conversation(name: str, user_id: str, db: Session = Depends(get_db)):
-    """Create a new conversation."""
-    conv = Conversation(name=name, user_id=user_id)
-    db.add(conv)
-    db.commit()
-    db.refresh(conv)
-    return {"conversation_id": conv.id}
+# Temporary visibility endpoints to validate DB/model wiring during implementation.
+# These routes are intended to be removed once feature-specific endpoints are complete.
+@app.get("/users")
+async def get_all_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "emailVerified": user.emailVerified,
+            "image": user.image,
+            "createdAt": user.createdAt,
+            "updatedAt": user.updatedAt,
+        }
+        for user in users
+    ]
 
 
-@app.get("/conversations/{conv_id}")
-async def get_conversation(conv_id: str, db: Session = Depends(get_db)):
-    """Get a conversation with all messages."""
-    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return {
-        "id": conv.id,
-        "name": conv.name,
-        "messages": [
-            {"type": m.type.value, "content": m.content} for m in conv.messages
-        ],
-    }
+@app.get("/conversations")
+async def get_all_conversations(db: Session = Depends(get_db)):
+    conversations = db.query(Conversation).all()
+    return [
+        {
+            "id": conv.id,
+            "user_id": conv.user_id,
+            "name": conv.name,
+            "createdAt": conv.createdAt,
+            "updatedAt": conv.updatedAt,
+        }
+        for conv in conversations
+    ]
+
+
+@app.get("/messages")
+async def get_all_messages(db: Session = Depends(get_db)):
+    messages = db.query(Message).all()
+    return [
+        {
+            "id": msg.id,
+            "conversation_id": msg.conversation_id,
+            "user_id": msg.user_id,
+            "content": msg.content,
+            "type": msg.type.value,
+            "createdAt": msg.createdAt,
+            "updatedAt": msg.updatedAt,
+        }
+        for msg in messages
+    ]
 
 
 if __name__ == "__main__":

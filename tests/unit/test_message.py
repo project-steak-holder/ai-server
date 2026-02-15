@@ -1,4 +1,5 @@
 from time import sleep
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import inspect
@@ -39,8 +40,8 @@ def test_message_creation(db_session):
 
 def test_message_requires_valid_foreign_keys(db_session):
     message = Message(
-        conversation_id="missing-conv-id",
-        user_id="missing-user-id",
+        conversation_id=uuid4(),
+        user_id=uuid4(),
         content="Hello",
         type=MessageType.USER,
     )
