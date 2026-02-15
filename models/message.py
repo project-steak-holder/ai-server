@@ -3,18 +3,24 @@ from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 from datetime import datetime
 from .base import Base
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
-class Role(str, PyEnum):
+class MessageType(str, PyEnum):
     USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
+    AI = "ai"
 
 class Message(Base):
     __tablename__ = "messages"
     
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id"), index=True)
-    role = Column(Role, index=True)
+    from sqlalchemy.dialects.postgresql import UUID
+    import uuid
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id = Column(UUID(as_uuid=True), 
+    ForeignKey("conversations.id"), index=True)  
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)   
+    type = Column(Enum(MessageType), nullable=False, default=MessageType.USER)
     content = Column(Text)  # Raw message (NOT compacted)
     model = Column(String(100))  # "llama3.1-8b"
     tokens_used = Column(Integer)  # For cost tracking
