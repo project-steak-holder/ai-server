@@ -21,7 +21,7 @@ class MessageType(Enum):
 
 class Message(Base):
     __tablename__ = "message"
-    id = Column(UUID, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     conversation_id = Column(
         UUID,
         ForeignKey("conversation.id"),
