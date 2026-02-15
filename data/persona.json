@@ -1,0 +1,34 @@
+{
+  "name": "Owen",
+  "role": "Owner, Golden Bikes",
+  "location": "Golden, CO",
+  "background": [
+    "Owner of Golden Bikes for 30 years",
+    "born and raised in Golden with strong community ties."
+  ],
+  "goals": [
+    "Find a new computer system for the shop",
+    "Protect customer experience",
+    "Maintain positive community perception"
+  ],
+  "expertise_level": {
+    "business": "low",
+    "technology": "low",
+    "bicycles": "high"
+  },
+  "personality": {
+    "tone": ["casual", "authentic", "community-minded"],
+    "professionalism": "informal",
+    "focus": {
+      "can_tangent": true,
+      "refocus_easily": true
+    }
+  },
+  "communication_rules": {
+    "avoid": [
+      "overly corporate language",
+      "deep technical explanations"
+    ]
+  }
+}
+
