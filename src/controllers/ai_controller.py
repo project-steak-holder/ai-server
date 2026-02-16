@@ -5,7 +5,7 @@ AIController is responsible for:
     delegating processing to AgentService
 """
 
-import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter
 
 from src.dependencies import WideEvent, CurrentUser, AgentService
@@ -22,13 +22,13 @@ async def generate(
     wide_event: WideEvent,
     agent_service: AgentService,
 ) -> GenerateResponse:
-    """FastAPI Controller for handling incoming requests from the front end
-    only a single route is needed for MVP
-    Neon Auth injected for authentication of JWT in request header
-    """
+    start_time = datetime.now(timezone.utc)
     wide_event.add_context(
         user_id=current_user.user_id,
         conversation_id=str(payload.conversation_id),
+        user_message=payload.content,
+        ai_service_process_message_status="started",
+        ai_service_start_time=start_time.isoformat(),
     )
 
     ai_service_response = await agent_service.process_agent_query(
@@ -37,14 +37,19 @@ async def generate(
         content=payload.content,
     )
 
+    end_time = datetime.now(timezone.utc)
+    duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
     wide_event.add_context(
-        **ai_service_response.get("event", {})
-    )  # Add AI response to event context for logging
+        ai_service_process_message_status=ai_service_response.get("status", "unknown"),
+        ai_service_response=ai_service_response.get("response", ""),
+        ai_service_response_error_details=ai_service_response.get("details", ""),
+        ai_service_end_time=end_time.isoformat(),
+        ai_service_duration_time_ms=duration_ms,
+    )
 
     return GenerateResponse(
         conversation_id=payload.conversation_id,
         content=ai_service_response.get("response", ""),
         type=MessageType.ai,
-        created_at=datetime.datetime.utcnow(),
-        updated_at=datetime.datetime.utcnow(),
     )
