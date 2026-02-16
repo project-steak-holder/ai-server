@@ -59,34 +59,16 @@ class AgentService:
         persists both request and response messages via persistence service
         returns response to controller as dict
         """
-        # Save the users message
-        user_message = await self.message_service.save_user_message(
+        await self.message_service.save_user_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=content,
         )
-        if user_message is None:
-            return {
-                "event": {
-                    "process_agent_query": "error",
-                    "process_agent_query_detail": "failed to save user message",
-                }
-            }
-        # load context
+
         persona = self.load_persona()
         project = self.load_project()
         history = await self.load_history(user_id, conversation_id)
 
-        # validate context
-        if not all([persona, project]):
-            return {
-                "event": {
-                    "process_agent_query": "error",
-                    "process_agent_query_detail": "missing required context",
-                }
-            }
-
-        # Run PydanticAI agent
         try:
             response_content = await run_stakeholder_query(
                 message=content,
@@ -96,38 +78,18 @@ class AgentService:
             )
         except Exception as e:
             return {
-                "event": {
-                    "process_agent_query": "error",
-                    "process_agent_query_detail": f"LLM error: {str(e)}",
-                }
+                "status": "error",
+                "response": "Error processing agent query",
+                "details": str(e),
             }
 
-        if not response_content:
-            return {
-                "event": {
-                    "process_agent_query": "error",
-                    "process_agent_query_detail": "LLM response missing 'message' field",
-                }
-            }
-
-        # persist response
         saved_ai_message = await self.message_service.save_ai_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=response_content,
         )
-        if saved_ai_message is None:
-            return {
-                "event": {
-                    "process_agent_query": "error",
-                    "process_agent_query_detail": "failed to save AI message",
-                }
-            }
 
         return {
-            "event": {
-                "process_agent_query": "success",
-                "process_agent_query_detail": "AI message saved successfully",
-            },
+            "status": "success",
             "response": saved_ai_message.content,
         }
