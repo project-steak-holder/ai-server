@@ -49,6 +49,11 @@ class PersonaService:
             ) from e
 
     @staticmethod
-    def get_persona() -> Optional[Persona]:
+    def get_persona() -> Persona:
         """fetch persona from service"""
+        if PersonaService.persona is None:
+            raise ContextLoadException(
+                message="Persona not loaded",
+                details={"suggestion": "Call load_persona() before getting persona"},
+            )
         return PersonaService.persona

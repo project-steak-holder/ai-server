@@ -48,6 +48,11 @@ class ProjectService:
             ) from e
 
     @staticmethod
-    def get_project() -> Optional[Project]:
+    def get_project() -> Project:
         """fetch project from service"""
+        if ProjectService.project is None:
+            raise ContextLoadException(
+                message="Project not loaded",
+                details={"suggestion": "Call load_project() before getting project"},
+            )
         return ProjectService.project
