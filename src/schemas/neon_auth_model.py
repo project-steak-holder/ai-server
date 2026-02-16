@@ -2,8 +2,11 @@
 Pydantic models for Neon Auth token validation.
 """
 
+import time
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
+
+from src.exceptions.authentication_error import AuthenticationError
 
 
 class NeonAuthTokenPayload(BaseModel):
@@ -35,23 +38,15 @@ class NeonAuthTokenPayload(BaseModel):
     @field_validator("exp")
     @classmethod
     def validate_not_expired(cls, exp: int) -> int:
-        """Validate token has not expired."""
-        import time
-
         current_time = int(time.time())
         if current_time >= exp:
-            from src.exceptions.authentication_error import AuthenticationError
-
             raise AuthenticationError("Token has expired")
         return exp
 
     @field_validator("banned")
     @classmethod
     def validate_not_banned(cls, banned: bool) -> bool:
-        """Validate user is not banned."""
         if banned:
-            from src.exceptions.authentication_error import AuthenticationError
-
             raise AuthenticationError("User account is banned")
         return banned
 

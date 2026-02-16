@@ -47,8 +47,3 @@ async def validate_neon_token(token: str):
             message="Token validation error",
             details={"error": str(error)},
         )
-    except Exception as error:
-        raise AuthenticationError(
-            message="Unexpected error during token validation",
-            details={"error": str(error)},
-        )
