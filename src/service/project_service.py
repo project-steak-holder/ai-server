@@ -12,6 +12,8 @@ import json
 from typing import Optional
 from src.models.project_model import Project
 
+from src.exceptions.context_load_exception import ContextLoadException
+
 class ProjectService:
 
     project: Optional[Project] = None
@@ -29,10 +31,26 @@ class ProjectService:
     def load_project(self) -> Project:
         """ loads project from file path set in init
         """
-        with open(self.file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        ProjectService.project = Project(**data)
-        return ProjectService.project
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            ProjectService.project = Project(**data)
+            return ProjectService.project
+        except FileNotFoundError as e:
+            raise ContextLoadException(
+                message=f"Project file not found: {self.file_path}",
+                details={"exception": str(e)}
+            ) from e
+        except json.JSONDecodeError as e:
+            raise ContextLoadException(
+                message="Failed to decode project JSON file",
+                details={"exception": str(e), "file_path": self.file_path}
+            ) from e
+        except Exception as e:
+            raise ContextLoadException(
+                message="Unexpected error loading project context",
+                details={"exception": str(e), "file_path": self.file_path}
+            ) from e
 
 
 

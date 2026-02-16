@@ -4,7 +4,7 @@ model definition for context model
 intended to package all relevant information
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from src.models.persona_model import Persona
@@ -20,6 +20,6 @@ class LlmQuery(BaseModel):
                     - placeholder for request message
     """
     request: Optional[str]
-    history: Optional[List[Message]] = None  # <-remove "None" once persistence implemented
+    history: List[Message] = Field(default_factory=list)
     persona: Optional[Persona]
     project: Optional[Project]

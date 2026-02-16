@@ -1,6 +1,8 @@
 """
 Adapter class for making requests to oLLaMA API for project stakeholder agent.
 """
+import os
+
 import requests
 from typing import Any, Dict
 
@@ -10,9 +12,9 @@ class LlamaAdapter:
         sends request to oLLaMA API
         returns response parsed to a dictionary to AgentService
     """
-    # will use env variables
-    API_URL = "oLlama_url"  # Placeholder
-    API_KEY = "your-api-key"  # Placeholder
+    # use env variables
+    API_URL =  os.environ.get("AI_PROVIDER_BASE_URL", "")
+    API_KEY = os.environ.get("AI_PROVIDER_API_KEY", "")
     TIMEOUT = 30  # seconds
 
 

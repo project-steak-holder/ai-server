@@ -9,7 +9,7 @@ from src.service.agent_service import AgentService
 from src.models.persona_model import Persona
 from src.models.project_model import Project
 from src.models.message_model import Message
-
+import uuid
 
 
 def test_load_persona(monkeypatch):
@@ -37,14 +37,14 @@ def test_load_project(monkeypatch):
     assert agent.project.project_name == "Golden Bikes Rental System"
 
 
-# will need updating!!!                                                     <---------<<<<<<<
+# todo update once persistence implemented
 def test_load_history():
     """ # test loading history
     """
     agent = AgentService()
     history = [
-        Message(messageID="M1", conversationID="C3", content="test message 1"),
-        Message(messageID="M2", conversationID="C3", content="test message 2")
+        Message(id=uuid.uuid4(), conversation_id=uuid.uuid4(), content="test message 1"),
+        Message(id=uuid.uuid4(), conversation_id=uuid.uuid4(), content="test message 2")
     ]
     agent.load_history(history)
     assert agent.history == history
@@ -99,16 +99,17 @@ def test_validate_context():
     # set project -> should be false (history missing)
     agent.load_project()
 
-    # set project -> should be false (history missing)
-    assert not agent.validate_context()
+    # set project -> should be true (no history = empty list)
+    assert agent.validate_context()
 
     # set history -> should be false
+    conv_id = uuid.uuid4()
     history = [
-        Message(messageID="M1", conversationID="C3", content="test message 1"),
-        Message(messageID="M2", conversationID="C3", content="test message 2")
+        Message(id=uuid.uuid4(), conversation_id=conv_id, content="test message 1"),
+        Message(id=uuid.uuid4(), conversation_id=conv_id, content="test message 2")
     ]
     agent.load_history(history)
-    # now all context set -> should be true"""
+    # now all context set -> should be true
     assert agent.validate_context()
 
 
@@ -126,9 +127,10 @@ def test_build_llm_query(monkeypatch):
     agent.load_persona()
     agent.load_project()
 
+    conv_id = uuid.uuid4()
     history = [
-        Message(messageID="M1", conversationID="C3", content="test message 1"),
-        Message(messageID="M2", conversationID="C3", content="test message 2")
+        Message(id=uuid.uuid4(), conversation_id=conv_id, content="test message 1"),
+        Message(id=uuid.uuid4(), conversation_id=conv_id, content="test message 2")
     ]
     agent.load_history(history)
     agent.set_request("What are the project requirements?")
@@ -146,7 +148,7 @@ def test_build_llm_query(monkeypatch):
     assert agent.llm_query["request"] == "What are the project requirements?"
     assert agent.llm_query["persona"]["name"] == "Owen"
     assert agent.llm_query["project"]["project_name"] == "Golden Bikes Rental System"
-    #assert isinstance(agent.llm_query["history"], list)
+    assert isinstance(agent.llm_query["history"], list)
 
 
 
@@ -157,14 +159,15 @@ def test_persist_message():
     """ test persisting message to DB
     """
     agent = AgentService()
-    agent.set_conversationID("conv-xyz")
+    conv_id = uuid.uuid4()
+    agent.set_conversation_id(conv_id)
     test_content = "This is a test message."
     msg = agent.persist_message(test_content)
     assert isinstance(msg, Message)
     assert msg.content == test_content
-    assert msg.conversationID == "conv-xyz"
+    assert msg.conversation_id == conv_id
 
-    # test actual repo persistence here          <---------------<<<<<<<<<<<<<<
+    # Todo test actual repo persistence here once implemented
 
 
 
@@ -200,19 +203,27 @@ def test_process_agent_query(monkeypatch):
     """
     agent = AgentService()
     # mock resources
+    conv_id = uuid.uuid4()
     req_payload = {
         "message": "What are the project requirements?",
-        "conversationID": "conv-123"
+        "conversation_id": str(conv_id)
     }
 
     # mock persona and project
-    persona = Persona(name="Test Persona", role="Test Role", location="Test Location", background=["bg"],
-                      goals=["goal"], expertise_level={"business": "high", "technology": "low"},
-                      personality={"tone": ["friendly"], "professionalism": "casual",
-                                   "focus": {"can_tangent": False, "refocus_easily": True}},
-                      communication_rules={"avoid": ["jargon"]})
+    persona = Persona(
+                        name="Test Persona",
+                        role="Test Role",
+                        location="Test Location",
+                        background=["bg"],
+                        goals=["goal"],
+                        expertise_level={"business": "high", "technology": "low"},
+                        personality={"tone": ["friendly"], "professionalism": "casual",
+                                     "focus": {"can_tangent": False, "refocus_easily": True}},
+                        communication_rules={"avoid": ["jargon"]})
 
-    project = Project(project_name="Test Project", business_summary="summary", requirements=[])
+    project = Project(project_name="Test Project",
+                      business_summary="summary",
+                      requirements=[])
 
     # patch in mocks
     monkeypatch.setattr(AgentService, "load_persona", lambda self: setattr(self, "persona", persona))

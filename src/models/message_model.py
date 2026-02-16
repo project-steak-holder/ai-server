@@ -9,10 +9,12 @@ contains:
 - conversationID
 - content
 """
+import uuid
 from typing import Optional
 from pydantic import BaseModel
 
 class Message(BaseModel):
-    messageID: Optional[str]
-    conversationID: str
+    # more fields available from orm message model if needed
+    id: Optional[uuid.UUID]
+    conversation_id: uuid.UUID
     content: str

@@ -4,6 +4,7 @@ Project Steak-Holder
 unit tests for project_service
 """
 import json
+import uuid
 
 from src.service.project_service import ProjectService
 from src.models.project_model import Project
@@ -53,12 +54,12 @@ def test_load_project_from_file(monkeypatch, tmp_path):
         "business_summary": "Test Business Summary",
         "requirements": [
             {
-                "id": "A1",
+                "id": str(uuid.uuid4()),
                 "category": "Test Requirement",
                 "requirement": "Test Requirement 1"
             },
             {
-                "id": "B2",
+                "id": str(uuid.uuid4()),
                 "category": "Test Requirement",
                 "requirement": "Test Requirement 2"
             }
@@ -72,8 +73,8 @@ def test_load_project_from_file(monkeypatch, tmp_path):
     monkeypatch.setenv("PROJECT_FILE", str(file_path))
     service = ProjectService()
     project = service.load_project()
-    assert isinstance(project, Project)
-    assert project.business_summary == "Test Business Summary"
+    assert project.project_name == "Test Project"
+    assert len(project.requirements) == 2
 
 
 

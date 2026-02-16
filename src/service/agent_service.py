@@ -4,7 +4,7 @@ This service will orchestrate conversation flow,
 persistence, persona, project context, and LLM interaction for a project stakeholder agent.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from src.adapter.llama_adapter import LlamaAdapter
@@ -20,7 +20,7 @@ class AgentService(BaseModel):
     # loaded from respective services
     persona: Optional[Persona] = None
     project: Optional[Project] = None
-    history: Optional[list[Message]] = None
+    history: list[Message] = Field(default_factory=list)
 
     # received from frontend via controller
     request: Optional[str] = None
@@ -29,7 +29,7 @@ class AgentService(BaseModel):
     llm_query: Optional[dict] = None
 
     # used to persist messages to DB
-    conversationID: Optional[str] = None
+    conversation_id: Optional[str] = None
 
     # getters
     def get_persona(self) -> Optional[Persona]:
@@ -47,8 +47,8 @@ class AgentService(BaseModel):
     def get_llm_query(self) -> Optional[dict]:
         return self.llm_query
 
-    def get_conversationID(self) -> Optional[str]:
-        return self.conversationID
+    def get_conversation_id(self) -> Optional[str]:
+        return self.conversation_id
 
     # load various context models/data
     def load_persona(self):
@@ -65,7 +65,8 @@ class AgentService(BaseModel):
         service.load_project()
         self.project = ProjectService.get_project()
 
-    # Finish ME !!!!                                                        <------<<<<<
+    # ToDo complete load_history implementation once repo is available
+
     def load_history(self, history: list[Message]):
         """ loads from message service
         """
@@ -76,10 +77,10 @@ class AgentService(BaseModel):
         """
         self.request = request
 
-    def set_conversationID(self, conversationID: str):
+    def set_conversation_id(self, conversation_id: str):
         """ set from request payload in orchestrator method
         """
-        self.conversationID = conversationID
+        self.conversation_id = conversation_id
 
 
     @staticmethod
@@ -91,12 +92,12 @@ class AgentService(BaseModel):
 
 
     def validate_context(self) -> bool:
-        """# validate all context content is present
+        """ validate all context content is present
         """
         return (self.request is not None
                 and self.persona is not None
                 and self.project is not None
-                #and self.history is not None
+                and self.history is not None
                 )
 
     def build_llm_query(self,
@@ -108,7 +109,7 @@ class AgentService(BaseModel):
         """
         self.llm_query = LlmQuery(
             request=request,
-            #history=history,
+            history=history,
             persona=persona,
             project=project
         ).model_dump()
@@ -120,20 +121,19 @@ class AgentService(BaseModel):
         """
         # build into Message model entity
         msg_obj = Message(
-            messageID=None,  # placeholder, replace with actual ID generation logic
-            conversationID=self.conversationID,
+            id=None,  # placeholder, replace with actual ID generation logic
+            conversation_id=self.conversation_id,
             content=message
         )
 
-        # Call persistence service/repository
-        # to save msg_obj to DB here                <------<<<<<
+        # ToDo Call persistence service/repository to save msg_obj to DB here
 
         return msg_obj
 
 
 
     def call_llm(self, llm_query: dict) -> dict:
-        """ call LLM via adapter layer
+        """ call LLM via adapter layer,
             accepts and returns dictionary
         """
         response = LlamaAdapter.send_query(llm_query)
@@ -152,10 +152,10 @@ class AgentService(BaseModel):
         # extract message from request and store
         self.request = AgentService.extract_message(req_payload)
         # set conversationID from payload
-        self.set_conversationID(req_payload.get("conversationID"))
-        # validate conversationID
-        if not self.conversationID:
-            return {"error": "missing conversationID."}
+        self.set_conversation_id(req_payload.get("conversation_id"))
+        # validate conversation_id
+        if not self.conversation_id:
+            return {"error": "missing conversation_id."}
         # persist request message
         self.persist_message(self.request)
         # load context

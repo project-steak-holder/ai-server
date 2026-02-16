@@ -2,19 +2,21 @@
 Project Steak-Holder
 Requirement model
 
-used in the project model
+Used in the Project model,
+which stores a list of Requirement objects
 
 contains:
 - requirement id
 - category
-- list of requirements
+- requirement
 """
 
 from pydantic import BaseModel
+import uuid
 
 class Requirement(BaseModel):
     """ used in project model to define project requirements
     """
-    id: str
+    id: uuid.UUID
     category: str
     requirement: str
