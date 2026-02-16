@@ -98,18 +98,7 @@ async def run_stakeholder_query(
     project: Project,
     history: list[Message],
 ) -> str:
-    """
-    Run a query through the stakeholder agent.
-
-    Args:
-        message: User's message/query
-        persona: Stakeholder persona
-        project: Project context
-        history: Conversation history
-
-    Returns:
-        Agent's response content
-    """
+    """Run a query through the stakeholder agent."""
     agent = get_stakeholder_agent()
 
     # Create dependencies
