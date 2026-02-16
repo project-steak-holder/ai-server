@@ -53,11 +53,61 @@ def test_set_request(agent_service):
     assert agent_service.request == request
 
 
-@pytest.mark.skip(
-    reason="TODO: Update test after refactoring process_agent_query method"
-)
-def test_process_agent_query():
-    """tests main orchestrator method: process_agent_query()
-    TODO: This test needs to be updated to match the new implementation
-    """
-    pass
+@pytest.mark.anyio
+async def test_process_agent_query_with_pydantic_ai(agent_service):
+    """Test process_agent_query using PydanticAI."""
+    from unittest.mock import MagicMock, patch
+
+    user_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    content = "What bikes do you have?"
+
+    # Mock the PydanticAI run_stakeholder_query function
+    with patch("src.service.agent_service.run_stakeholder_query") as mock_run:
+        mock_run.return_value = "We have mountain bikes and road bikes!"
+
+        # Mock message service to return a message
+        mock_message = MagicMock()
+        mock_message.id = uuid.uuid4()
+        mock_message.content = "We have mountain bikes and road bikes!"
+        agent_service.message_service.save_ai_message.return_value = mock_message
+
+        # Run the query
+        result = await agent_service.process_agent_query(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+
+        # Verify PydanticAI was called
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["message"] == content
+
+        # Verify result structure
+        assert result["status"] == "success"
+        assert "response" in result
+
+
+@pytest.mark.anyio
+async def test_process_agent_query_handles_llm_error(agent_service):
+    """Test process_agent_query handles LLM errors gracefully."""
+    from unittest.mock import patch
+
+    user_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    content = "Test message"
+
+    # Mock PydanticAI to raise an exception
+    with patch("src.service.agent_service.run_stakeholder_query") as mock_run:
+        mock_run.side_effect = Exception("LLM timeout")
+
+        result = await agent_service.process_agent_query(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+
+        # Should return error event
+        assert result["status"] == "error"
+        assert "Error processing agent query" in result["response"]
