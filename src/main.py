@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from src.database import engine
-from src.controllers.ai import router as ai_router
+from src.controllers.ai_controller import router as ai_router
 from src.middlewares.correlation_id import CorrelationIDMiddleware
 from src.middlewares.error_handler import global_exception_handler
 from src.middlewares.events import EventMiddleware
