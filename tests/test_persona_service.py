@@ -19,10 +19,8 @@ def test_init_uses_env_var(monkeypatch):
     assert service.file_path == "custom/path/persona.json"
 
 
-
 def test_init_uses_default_when_no_env(monkeypatch):
-    """ test default filepath used when env variable not set
-    """
+    """test default filepath used when env variable not set"""
     # ensure env variable not set
     monkeypatch.delenv("PERSONA_FILE", raising=False)
     service = PersonaService()
@@ -30,10 +28,8 @@ def test_init_uses_default_when_no_env(monkeypatch):
     assert service.file_path == "data/persona.json"
 
 
-
 def test_load_persona_default(monkeypatch):
-    """ test loading persona from default file
-    """
+    """test loading persona from default file"""
     # ensure env variable not set -> default file used
     monkeypatch.delenv("PERSONA_FILE", raising=False)
     service = PersonaService()
@@ -43,10 +39,8 @@ def test_load_persona_default(monkeypatch):
     assert persona.role == "Owner, Golden Bikes"
 
 
-
 def test_load_persona_from_file(monkeypatch, tmp_path):
-    """ test loading persona from custom file path set in env variable
-    """
+    """test loading persona from custom file path set in env variable"""
     # create test persona file
     persona_data = {
         "name": "Test Persona",
@@ -56,19 +50,14 @@ def test_load_persona_from_file(monkeypatch, tmp_path):
         "goals": ["Goal 1", "Goal 2"],
         "expertise_level": {
             "business": "Test Business Expertise",
-            "technology": "Test Technology Expertise"
+            "technology": "Test Technology Expertise",
         },
         "personality": {
             "tone": ["Test Tone"],
             "professionalism": "Test Professionalism",
-            "focus": {
-                "can_tangent": True,
-                "refocus_easily": False
-            }
+            "focus": {"can_tangent": True, "refocus_easily": False},
         },
-        "communication_rules": {
-            "avoid": ["Test Avoid 1", "Test Avoid 2"]
-        }
+        "communication_rules": {"avoid": ["Test Avoid 1", "Test Avoid 2"]},
     }
     file_path = tmp_path / "persona.json"
     with open(file_path, "w", encoding="utf-8") as f:
@@ -81,10 +70,8 @@ def test_load_persona_from_file(monkeypatch, tmp_path):
     assert persona.role == "Test Role"
 
 
-
 def test_get_persona():
-    """ test get_persona returns loaded persona
-    """
+    """test get_persona returns loaded persona"""
     service = PersonaService()
     persona = service.load_persona()
     assert service.get_persona() == persona
