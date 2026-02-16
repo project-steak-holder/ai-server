@@ -15,8 +15,10 @@ logging.getLogger("starlette.middleware.errors").setLevel(logging.CRITICAL)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    yield
-    await engine.dispose()
+    try:
+        yield
+    finally:
+        await engine.dispose()
 
 
 # Setup FastAPI app and include middleware and exception handler
