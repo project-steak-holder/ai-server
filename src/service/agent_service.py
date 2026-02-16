@@ -52,15 +52,13 @@ class AgentService(BaseModel):
 
     # load various context models/data
     def load_persona(self):
-        """ loads from persona service
-        """
+        """loads from persona service"""
         service = PersonaService()
         service.load_persona()
         self.persona = PersonaService.get_persona()
 
     def load_project(self):
-        """ loads from project service
-        """
+        """loads from project service"""
         service = ProjectService()
         service.load_project()
         self.project = ProjectService.get_project()
@@ -68,86 +66,65 @@ class AgentService(BaseModel):
     # ToDo complete load_history implementation once repo is available
 
     def load_history(self, history: list[Message]):
-        """ loads from message service
-        """
+        """loads from message service"""
         self.history = history
 
     def set_request(self, request: str):
-        """ set from request payload in orchestrator method
-        """
+        """set from request payload in orchestrator method"""
         self.request = request
 
     def set_conversation_id(self, conversation_id: str):
-        """ set from request payload in orchestrator method
-        """
+        """set from request payload in orchestrator method"""
         self.conversation_id = conversation_id
-
 
     @staticmethod
     def extract_message(payload: dict) -> str:
-        """ extract message from request or response
-        """
+        """extract message from request or response"""
         return payload.get("message", "")
 
-
-
     def validate_context(self) -> bool:
-        """ validate all context content is present
-        """
-        return (self.request is not None
-                and self.persona is not None
-                and self.project is not None
-                and self.history is not None
-                )
+        """validate all context content is present"""
+        return (
+            self.request is not None
+            and self.persona is not None
+            and self.project is not None
+            and self.history is not None
+        )
 
-    def build_llm_query(self,
-                        request: str,
-                        history: list[Message],
-                        persona: Persona,
-                        project: Project):
-        """ assemble context model for LLM query and serialize to dict
-        """
+    def build_llm_query(
+        self, request: str, history: list[Message], persona: Persona, project: Project
+    ):
+        """assemble context model for LLM query and serialize to dict"""
         self.llm_query = LlmQuery(
-            request=request,
-            history=history,
-            persona=persona,
-            project=project
+            request=request, history=history, persona=persona, project=project
         ).model_dump()
 
-
-
     def persist_message(self, message: str) -> Message:
-        """ save to DB via service/repository
-        """
+        """save to DB via service/repository"""
         # build into Message model entity
         msg_obj = Message(
             id=None,  # placeholder, replace with actual ID generation logic
             conversation_id=self.conversation_id,
-            content=message
+            content=message,
         )
 
         # ToDo Call persistence service/repository to save msg_obj to DB here
 
         return msg_obj
 
-
-
     def call_llm(self, llm_query: dict) -> dict:
-        """ call LLM via adapter layer,
-            accepts and returns dictionary
+        """call LLM via adapter layer,
+        accepts and returns dictionary
         """
         response = LlamaAdapter.send_query(llm_query)
         return response
 
-
-
-
     def process_agent_query(self, req_payload: dict) -> dict:
-        """ Main Orchestrator Method
-            receives request payload from controller as dict
-            assembles context from persona, project and persistence(history) service
-            persists both request and response messages via persistence service
-            returns response to controller as dict
+        """Main Orchestrator Method
+        receives request payload from controller as dict
+        assembles context from persona, project and persistence(history) service
+        persists both request and response messages via persistence service
+        returns response to controller as dict
         """
         # extract message from request and store
         self.request = AgentService.extract_message(req_payload)
@@ -170,7 +147,7 @@ class AgentService(BaseModel):
             request=self.request,
             history=self.history,
             persona=self.persona,
-            project=self.project
+            project=self.project,
         )
         # send request to LLM adapter
         response_dict = self.call_llm(self.llm_query)

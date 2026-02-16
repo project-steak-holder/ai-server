@@ -35,23 +35,20 @@ class PersonaService:
         except FileNotFoundError as e:
             raise ContextLoadException(
                 message=f"Persona file not found: {self.file_path}",
-                details={"exception": str(e)}
+                details={"exception": str(e)},
             ) from e
         except json.JSONDecodeError as e:
             raise ContextLoadException(
                 message="Failed to decode persona JSON file",
-                details={"exception": str(e), "file_path": self.file_path}
+                details={"exception": str(e), "file_path": self.file_path},
             ) from e
         except Exception as e:
             raise ContextLoadException(
                 message="Unexpected error loading persona context",
-                details={"exception": str(e), "file_path": self.file_path}
+                details={"exception": str(e), "file_path": self.file_path},
             ) from e
-
-
 
     @staticmethod
     def get_persona() -> Optional[Persona]:
-        """ fetch persona from service
-        """
+        """fetch persona from service"""
         return PersonaService.persona
