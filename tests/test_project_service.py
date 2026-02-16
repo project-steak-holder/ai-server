@@ -3,16 +3,16 @@ Project Steak-Holder
 
 unit tests for project_service
 """
+
 import json
 import uuid
 
 from src.service.project_service import ProjectService
-from src.models.project_model import Project
+from src.schemas.project_model import Project
 
 
 def test_init_uses_env_var(monkeypatch):
-    """ test setting filepath as env variable
-    """
+    """test setting filepath as env variable"""
     # set env variable
     monkeypatch.setenv("PROJECT_FILE", "custom/path/project.json")
     service = ProjectService()

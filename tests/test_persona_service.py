@@ -3,16 +3,15 @@ Project Steak-Holder
 
 unit tests for persona_service
 """
+
 import json
 
 from src.service.persona_service import PersonaService
-from src.models.persona_model import Persona
-
+from src.schemas.persona_model import Persona
 
 
 def test_init_uses_env_var(monkeypatch):
-    """ test setting filepath as env variable
-    """
+    """test setting filepath as env variable"""
     # set env variable
     monkeypatch.setenv("PERSONA_FILE", "custom/path/persona.json")
     service = PersonaService()

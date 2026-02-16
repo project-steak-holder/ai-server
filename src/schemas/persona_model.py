@@ -12,24 +12,24 @@ from typing import List
 
 
 class ExpertiseLevel(BaseModel):
-    """ component of Persona model
-    """
+    """component of Persona model"""
+
     business: str
     technology: str
     model_config = ConfigDict(extra="allow")
 
 
 class PersonalityFocus(BaseModel):
-    """ component of Personality model
-    """
+    """component of Personality model"""
+
     can_tangent: bool
     refocus_easily: bool
     model_config = ConfigDict(extra="allow")
 
 
 class Personality(BaseModel):
-    """ component of Persona model
-    """
+    """component of Persona model"""
+
     tone: List[str]
     professionalism: str
     focus: PersonalityFocus
@@ -37,16 +37,17 @@ class Personality(BaseModel):
 
 
 class CommunicationRules(BaseModel):
-    """ component of Persona model
-    """
+    """component of Persona model"""
+
     avoid: List[str]
     model_config = ConfigDict(extra="allow")
 
 
 class Persona(BaseModel):
-    """ model for project stakeholder agent persona
-        uses sub-models defined above
+    """model for project stakeholder agent persona
+    uses sub-models defined above
     """
+
     name: str
     role: str
     location: str

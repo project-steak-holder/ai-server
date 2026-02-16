@@ -8,10 +8,10 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from src.adapter.llama_adapter import LlamaAdapter
-from src.models.llm_query_model import LlmQuery
-from src.models.persona_model import Persona
-from src.models.project_model import Project
-from src.models.message_model import Message
+from src.schemas.llm_query_model import LlmQuery
+from src.schemas.persona_model import Persona
+from src.schemas.project_model import Project
+from src.schemas.message_model import Message
 from src.service.persona_service import PersonaService
 from src.service.project_service import ProjectService
 

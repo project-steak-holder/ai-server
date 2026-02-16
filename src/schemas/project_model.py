@@ -14,12 +14,12 @@ contains:
 from pydantic import BaseModel
 from typing import List
 
-from src.models.requirement_model import Requirement
+from src.schemas.requirement_model import Requirement
+
 
 class Project(BaseModel):
-    """ model for project stakeholder project details
-    """
+    """model for project stakeholder project details"""
+
     project_name: str
     business_summary: str
     requirements: List[Requirement]
-

@@ -10,27 +10,22 @@ can be overridden with "PROJECT_FILE" environment variable
 import os
 import json
 from typing import Optional
-from src.models.project_model import Project
+from src.schemas.project_model import Project
 
 from src.exceptions.context_load_exception import ContextLoadException
 
-class ProjectService:
 
+class ProjectService:
     project: Optional[Project] = None
 
-
     def __init__(self):
-        """ override with environment variable
-            or default to /data/project.json
+        """override with environment variable
+        or default to /data/project.json
         """
-        self.file_path = (os.environ.get("PROJECT_FILE")
-                          or "data/project.json")
-
-
+        self.file_path = os.environ.get("PROJECT_FILE") or "data/project.json"
 
     def load_project(self) -> Project:
-        """ loads project from file path set in init
-        """
+        """loads project from file path set in init"""
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)

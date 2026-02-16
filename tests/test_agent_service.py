@@ -3,18 +3,18 @@ Project Steak-Holder
 
 unit tests for agent_service
 """
+
 from unittest.mock import patch
 
 from src.service.agent_service import AgentService
-from src.models.persona_model import Persona
-from src.models.project_model import Project
-from src.models.message_model import Message
+from src.schemas.persona_model import Persona
+from src.schemas.project_model import Project
+from src.schemas.message_model import Message
 import uuid
 
 
 def test_load_persona(monkeypatch):
-    """ test loading persona from service / default file
-    """
+    """test loading persona from service / default file"""
     # make sure environment variable not set -> default file used
     monkeypatch.delenv("PERSONA_FILE", raising=False)
     agent = AgentService()
