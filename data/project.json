@@ -1,0 +1,34 @@
+{
+  "project_name": "Golden Bikes Rental System",
+  "business_summary": "Golden Bikes is a long-standing bike rental shop in Golden, Colorado, experiencing increased business volume. The business needs an automated system to manage rentals, inventory, maintenance, payments, customer self-service, and management reporting.",
+  "requirements": [
+    {"id": "b1e2a3c4-5d6f-4a7b-8c9d-0e1f2a3b4c5d", "category": "rental", "requirement": "I want to rent bikes by the hour or by the day, so that I can support both short and full-day rentals."},
+    {"id": "c2f3b4d5-6e7a-4b8c-9d0e-1f2a3b4c5d6e", "category": "inventory", "requirement": "I want to track individual bikes and their availability, so that I know which bikes can be rented."},
+    {"id": "d3a4c5e6-7f8b-4c9d-0e1f-2a3b4c5d6e7f", "category": "maintenance", "requirement": "I want to remove bikes from rental rotation for maintenance, so that unsafe or damaged bikes are not rented."},
+    {"id": "e4b5d6f7-8a9c-4d0e-1f2a-3b4c5d6e7f8a", "category": "platform", "requirement": "I want the system to be available on web and mobile, so that customers can make reservations anywhere."},
+    {"id": "f5c6e7a8-9b0d-4e1f-2a3b-4c5d6e7f8a9b", "category": "inventory", "requirement": "I want to offer different bike models for different rider needs, so that customers can choose the right bike."},
+    {"id": "a6d7f8b9-0c1e-4f2a-3b4c-5d6e7f8a9b0c", "category": "inventory", "requirement": "I want customers to see available bike inventory, so that they can make informed reservations."},
+    {"id": "b7e8a9c0-1d2f-4a3b-4c5d-6e7f8a9b0c1d", "category": "search", "requirement": "I want customers to search bikes by specific characteristics, so that they can quickly find suitable bikes."},
+    {"id": "c8f9b0d1-2e3a-4b5c-6d7e-8f9a0b1c2d3e", "category": "reservation", "requirement": "I want customers to reserve multiple bikes in one reservation, so that groups and families can rent together."},
+    {"id": "d9a0c1e2-3f4b-4c6d-8e9f-0a1b2c3d4e5f", "category": "payment", "requirement": "I want customers to pay with a credit card, so that payments are secure and efficient."},
+    {"id": "e0b1d2f3-4a5c-4d7e-9f0a-1b2c3d4e5f6a", "category": "payment", "requirement": "I want to place a hold on a customer’s credit card, so that I can charge for damage or non-returned bikes."},
+    {"id": "f1c2e3a4-5b6d-4e8f-0a1b-2c3d4e5f6a7b", "category": "payment", "requirement": "I want to bill the credit card only after bikes are returned, so that charges are accurate."},
+    {"id": "a2d3f4b5-6c7e-4f9a-1b2c-3d4e5f6a7b8c", "category": "reservation", "requirement": "I want customers to make reservations at an in-store kiosk, so that walk-in customers are supported."},
+    {"id": "b3e4a5c6-7d8f-4a0b-2c3d-4e5f6a7b8c9d", "category": "kiosk", "requirement": "I want the kiosk to support card swiping, so that customers can complete reservations quickly."},
+    {"id": "c4f5b6d7-8e9a-4b1c-3d4e-5f6a7b8c9d0e", "category": "pickup", "requirement": "I want customers to pick up bikes without employee assistance, so that staff workload is reduced."},
+    {"id": "d5a6c7e8-9f0b-4c2d-4e5f-6a7b8c9d0e1f", "category": "reservation", "requirement": "I want customers to change or cancel reservations up to 24 hours in advance, so that inventory planning is reliable."},
+    {"id": "e6b7d8f9-0a1c-4d3e-5f6a-7b8c9d0e1f2a", "category": "return", "requirement": "I want employees to process bike returns, so that bikes are inspected and checked back in properly."},
+    {"id": "f7c8e9a0-1b2d-4e5f-6a7b-8c9d0e1f2a3b", "category": "payment", "requirement": "I want to automatically calculate late return charges, so that overages are billed consistently."},
+    {"id": "a8d9f0b1-2c3e-4f6a-7b8c-9d0e1f2a3b4c", "category": "payment", "requirement": "I want to apply damage fees after inspecting returned bikes, so that repair costs are recovered."},
+    {"id": "b9e0a1c2-3d4f-4a7b-8c9d-0e1f2a3b4c5d", "category": "payment", "requirement": "I want to set fees for reservation changes and cancellations, so that policies reflect business needs."},
+    {"id": "c0f1b2d3-4e5a-4b8c-9d0e-1f2a3b4c5d6e", "category": "inventory", "requirement": "I want employees to return bikes to inventory within 10–20 minutes when possible, so that availability stays accurate."},
+    {"id": "d1a2c3e4-5f6b-4c9d-0e1f-2a3b4c5d6e7f", "category": "pricing", "requirement": "I want to set bike rental rates, so that pricing can be adjusted over time."},
+    {"id": "e2b3d4f5-6a7c-4d8e-9f0a-1b2c3d4e5f6a", "category": "pricing", "requirement": "I want different bike categories to have different rental rates, so that pricing reflects value."},
+    {"id": "f3c4e5a6-7b8d-4e9f-0a1b-2c3d4e5f6a7b", "category": "inventory", "requirement": "I want to add new bikes to inventory, so that the business can grow."},
+    {"id": "a4d5f6b7-8c9e-4f0a-1b2c-3d4e5f6a7b8c", "category": "reporting", "requirement": "I want a summary report that aggregates other reports, so that I can quickly understand overall performance."},
+    {"id": "b5e6a7c8-9d0f-4a1b-2c3d-4e5f6a7b8c9d", "category": "reporting", "requirement": "I want daily, weekly, and monthly rental reports by category, so that I can track trends."},
+    {"id": "c6f7b8d9-0e1a-4b2c-3d4e-5f6a7b8c9d0e", "category": "reporting", "requirement": "I want maintenance reports by individual bike, so that recurring issues can be identified."},
+    {"id": "d7a8c9e0-1f2b-4c3d-4e5f-6a7b8c9d0e1f", "category": "reporting", "requirement": "I want rental reports by category that drill down by model, so that I can make informed purchasing decisions."}
+  ]
+}
+
