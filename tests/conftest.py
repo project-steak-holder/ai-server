@@ -97,7 +97,11 @@ def mock_message_repository():
     def create_mock_message(conversation_id, user_id, content, msg_type):
         msg = MagicMock(spec=MessageModel)
         msg.id = uuid.uuid4()
-        msg.conversation_id = uuid.UUID(conversation_id)
+        msg.conversation_id = (
+            uuid.UUID(conversation_id)
+            if isinstance(conversation_id, str)
+            else conversation_id
+        )
         msg.user_id = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
         msg.content = content
         msg.type = msg_type
