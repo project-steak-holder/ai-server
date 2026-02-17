@@ -25,13 +25,35 @@ async def get_jwks():
 
 def get_signing_key(token, jwks):
     unverified_header = jwt.get_unverified_header(token)
+    if "kid" not in unverified_header:
+        raise AuthenticationError(
+            message="Token header missing 'kid' field",
+            details={"header": unverified_header},
+        )
     kid = unverified_header["kid"]
     for jwk in jwks["keys"]:
+        if "kid" not in jwk:
+            raise AuthenticationError(
+                message="JWK missing 'kid' field",
+                details={"jwk": jwk},
+            )
         if jwk["kid"] == kid:
+            if "x" not in jwk:
+                raise AuthenticationError(
+                    message=f"JWK with kid '{kid}' missing 'x' field",
+                    details={"jwk": jwk},
+                )
             x = jwk["x"]
-            public_key_bytes = base64.urlsafe_b64decode(x + "==")
+            padding = "=" * (-len(x) % 4)
+            public_key_bytes = base64.urlsafe_b64decode(x + padding)
             return Ed25519PublicKey.from_public_bytes(public_key_bytes)
-    raise ValueError("Matching JWK not found")
+    raise AuthenticationError(
+        message="Matching JWK not found",
+        details={
+            "kid": kid,
+            "available_kids": [jwk.get("kid") for jwk in jwks.get("keys", [])],
+        },
+    )
 
 
 async def validate_neon_token(token: str):
