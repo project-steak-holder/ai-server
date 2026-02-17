@@ -5,6 +5,7 @@ persistence, persona, project context, and LLM interaction for a project stakeho
 """
 
 from src.agents.stakeholder_agent import run_stakeholder_query
+from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.message_model import Message
 from src.service.persona_service import PersonaService
 from src.service.project_service import ProjectService
@@ -76,7 +77,7 @@ class AgentService:
                 project=project,
                 history=history or [],
             )
-        except Exception as e:
+        except LlmResponseException as e:
             return {
                 "status": "error",
                 "response": "Error processing agent query",

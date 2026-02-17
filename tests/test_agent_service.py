@@ -4,6 +4,7 @@ Project Steak-Holder
 unit tests for agent_service
 """
 
+from unittest.mock import AsyncMock
 import pytest
 
 from src.schemas.persona_model import Persona
@@ -63,7 +64,9 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
     content = "What bikes do you have?"
 
     # Mock the PydanticAI run_stakeholder_query function
-    with patch("src.service.agent_service.run_stakeholder_query") as mock_run:
+    with patch(
+        "src.service.agent_service.run_stakeholder_query", new_callable=AsyncMock
+    ) as mock_run:
         mock_run.return_value = "We have mountain bikes and road bikes!"
 
         # Mock message service to return a message
@@ -93,6 +96,7 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
 async def test_process_agent_query_handles_llm_error(agent_service):
     """Test process_agent_query handles LLM errors gracefully."""
     from unittest.mock import patch
+    from src.exceptions.llm_response_exception import LlmResponseException
 
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -100,7 +104,9 @@ async def test_process_agent_query_handles_llm_error(agent_service):
 
     # Mock PydanticAI to raise an exception
     with patch("src.service.agent_service.run_stakeholder_query") as mock_run:
-        mock_run.side_effect = Exception("LLM timeout")
+        mock_run.side_effect = LlmResponseException(
+            message="LLM timeout", details={"error": "timeout"}
+        )
 
         result = await agent_service.process_agent_query(
             user_id=user_id,
