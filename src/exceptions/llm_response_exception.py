@@ -3,6 +3,7 @@ Custom Exception
 thrown if required fields are missing
 """
 
+from typing import Any, Optional
 from .base_exceptions import AppException
 
 
@@ -12,7 +13,7 @@ class LlmResponseException(AppException):
     def __init__(
         self,
         message: str = "LLM response is invalid or missing required fields",
-        details: dict = {},
+        details: Optional[dict[str, Any]] = None,
     ):
         super().__init__(
             status_code=500,
