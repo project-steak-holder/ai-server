@@ -4,70 +4,44 @@ This service will orchestrate conversation flow,
 persistence, persona, project context, and LLM interaction for a project stakeholder agent.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
-
-from src.adapter.llama_adapter import LlamaAdapter
-from src.schemas.llm_query_model import LlmQuery
-from src.schemas.persona_model import Persona
-from src.schemas.project_model import Project
+from src.agents.stakeholder_agent import run_stakeholder_query
+from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.message_model import Message
 from src.service.persona_service import PersonaService
 from src.service.project_service import ProjectService
+from src.service.message_service import MessageService
 
 
-class AgentService(BaseModel):
-    # loaded from respective services
-    persona: Optional[Persona] = None
-    project: Optional[Project] = None
-    history: list[Message] = Field(default_factory=list)
+class AgentService:
+    """Service for orchestrating agent conversations and context."""
 
-    # received from frontend via controller
-    request: Optional[str] = None
+    def __init__(
+        self,
+        persona_service: PersonaService,
+        project_service: ProjectService,
+        message_service: MessageService,
+    ):
+        # dependencies injected via FastAPI
+        self.persona_service = persona_service
+        self.project_service = project_service
+        self.message_service = message_service
 
-    # request body to send to backend LLM
-    llm_query: Optional[dict] = None
-
-    # used to persist messages to DB
-    conversation_id: Optional[str] = None
-
-    # getters
-    def get_persona(self) -> Optional[Persona]:
-        return self.persona
-
-    def get_project(self) -> Optional[Project]:
-        return self.project
-
-    def get_history(self) -> Optional[list[Message]]:
-        return self.history
-
-    def get_request(self) -> Optional[str]:
-        return self.request
-
-    def get_llm_query(self) -> Optional[dict]:
-        return self.llm_query
-
-    def get_conversation_id(self) -> Optional[str]:
-        return self.conversation_id
-
-    # load various context models/data
     def load_persona(self):
         """loads from persona service"""
-        service = PersonaService()
-        service.load_persona()
-        self.persona = PersonaService.get_persona()
+        self.persona_service.load_persona()
+        return self.persona_service.get_persona()
 
     def load_project(self):
         """loads from project service"""
-        service = ProjectService()
-        service.load_project()
-        self.project = ProjectService.get_project()
+        self.project_service.load_project()
+        return self.project_service.get_project()
 
-    # ToDo complete load_history implementation once repo is available
-
-    def load_history(self, history: list[Message]):
+    async def load_history(self, user_id: str, conversation_id: str):
         """loads from message service"""
-        self.history = history
+        history = await self.message_service.get_conversation_history(
+            user_id=user_id, conversation_id=conversation_id
+        )
+        return [Message.model_validate(msg, from_attributes=True) for msg in history]
 
     def set_request(self, request: str):
         """set from request payload in orchestrator method"""
@@ -77,83 +51,46 @@ class AgentService(BaseModel):
         """set from request payload in orchestrator method"""
         self.conversation_id = conversation_id
 
-    @staticmethod
-    def extract_message(payload: dict) -> str:
-        """extract message from request or response"""
-        return payload.get("message", "")
-
-    def validate_context(self) -> bool:
-        """validate all context content is present"""
-        return (
-            self.request is not None
-            and self.persona is not None
-            and self.project is not None
-            and self.history is not None
-        )
-
-    def build_llm_query(
-        self, request: str, history: list[Message], persona: Persona, project: Project
-    ):
-        """assemble context model for LLM query and serialize to dict"""
-        self.llm_query = LlmQuery(
-            request=request, history=history, persona=persona, project=project
-        ).model_dump()
-
-    def persist_message(self, message: str) -> Message:
-        """save to DB via service/repository"""
-        # build into Message model entity
-        msg_obj = Message(
-            id=None,  # placeholder, replace with actual ID generation logic
-            conversation_id=self.conversation_id,
-            content=message,
-        )
-
-        # ToDo Call persistence service/repository to save msg_obj to DB here
-
-        return msg_obj
-
-    def call_llm(self, llm_query: dict) -> dict:
-        """call LLM via adapter layer,
-        accepts and returns dictionary
-        """
-        response = LlamaAdapter.send_query(llm_query)
-        return response
-
-    def process_agent_query(self, req_payload: dict) -> dict:
+    async def process_agent_query(
+        self, user_id: str, conversation_id: str, content: str
+    ) -> dict:
         """Main Orchestrator Method
         receives request payload from controller as dict
         assembles context from persona, project and persistence(history) service
         persists both request and response messages via persistence service
         returns response to controller as dict
         """
-        # extract message from request and store
-        self.request = AgentService.extract_message(req_payload)
-        # set conversationID from payload
-        self.set_conversation_id(req_payload.get("conversation_id"))
-        # validate conversation_id
-        if not self.conversation_id:
-            return {"error": "missing conversation_id."}
-        # persist request message
-        self.persist_message(self.request)
-        # load context
-        self.load_persona()
-        self.load_project()
-        self.load_history()
-        # validate context
-        if not self.validate_context():
-            return {"error": "missing required context."}
-        # build LLM query model
-        self.build_llm_query(
-            request=self.request,
-            history=self.history,
-            persona=self.persona,
-            project=self.project,
+        await self.message_service.save_user_message(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
         )
-        # send request to LLM adapter
-        response_dict = self.call_llm(self.llm_query)
-        # extract message from response
-        response = AgentService.extract_message(response_dict)
-        # persist response
-        self.persist_message(response)
 
-        return response_dict
+        persona = self.load_persona()
+        project = self.load_project()
+        history = await self.load_history(user_id, conversation_id)
+
+        try:
+            response_content = await run_stakeholder_query(
+                message=content,
+                persona=persona,
+                project=project,
+                history=history or [],
+            )
+        except LlmResponseException as e:
+            return {
+                "status": "error",
+                "response": "Error processing agent query",
+                "details": str(e),
+            }
+
+        saved_ai_message = await self.message_service.save_ai_message(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=response_content,
+        )
+
+        return {
+            "status": "success",
+            "response": saved_ai_message.content,
+        }

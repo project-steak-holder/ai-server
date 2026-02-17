@@ -7,17 +7,17 @@ from typing import Any, Optional
 from .base_exceptions import AppException
 
 
-class MissingRequiredFieldException(AppException):
-    """Exception raised when required fields are missing."""
+class LlmResponseException(AppException):
+    """Exception raised when llm response is invalid or missing required fields."""
 
     def __init__(
         self,
-        message: str = "Missing required field",
+        message: str = "LLM response is invalid or missing required fields",
         details: Optional[dict[str, Any]] = None,
     ):
         super().__init__(
-            status_code=400,
-            error="MISSING_REQUIRED_FIELD",
+            status_code=500,
+            error="LLM_RESPONSE_ERROR",
             message=message,
             details=details,
         )
