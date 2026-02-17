@@ -55,6 +55,3 @@ Thumbs.db
 # Project specific
 *.log
 *.pid
-
-# AI generated files
-.github/
