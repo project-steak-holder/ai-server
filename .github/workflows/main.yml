@@ -34,3 +34,9 @@ jobs:
         run: uv sync --dev --frozen
       - name: Run pytest
         run: uv run pytest
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AI_PROVIDER_API_KEY: ${{ secrets.AI_PROVIDER_API_KEY }}
+          AI_PROVIDER_BASE_URL: ${{ secrets.AI_PROVIDER_BASE_URL }}
+          AUTH_URL: ${{ secrets.AUTH_URL }}
+          NODE_ENV: test
