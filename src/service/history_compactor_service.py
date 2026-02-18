@@ -5,7 +5,6 @@ reduces token usage while preserving context
 Project StakeHolder
 """
 import os
-from pydantic_ai import Agent, ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
