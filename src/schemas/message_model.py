@@ -8,11 +8,20 @@ contains:
 - messageID
 - conversationID
 - content
+- role (user or ai)
 """
 
 import uuid
 from typing import Optional
 from pydantic import BaseModel, ConfigDict
+from enum import Enum
+
+class RoleEnum(str, Enum):
+    """Defines role of message sender,
+       either user or assistant.
+    """
+    user = "user"
+    ai = "ai"
 
 
 class Message(BaseModel):
@@ -25,3 +34,4 @@ class Message(BaseModel):
     id: Optional[uuid.UUID]
     conversation_id: uuid.UUID
     content: str
+    role: RoleEnum

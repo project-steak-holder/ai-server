@@ -13,7 +13,6 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
-from src.schemas.message_model import Message
 
 
 class AgentDependencies(BaseModel):
@@ -21,7 +20,7 @@ class AgentDependencies(BaseModel):
 
     persona: Persona
     project: Project
-    history: list[Message] = Field(default_factory=list)
+    history: list[dict] = Field(default_factory=list)
 
 
 class AgentResponse(BaseModel):
@@ -60,7 +59,11 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     def stakeholder_system_prompt(ctx: RunContext[AgentDependencies]) -> str:
         persona = ctx.deps.persona
         project = ctx.deps.project
-
+        history = ctx.deps.history
+        # Format history as a string using dict keys
+        history_str = "\n".join(
+            f"{'User' if msg['role'] == 'user' else 'AI'}: {msg['content']}" for msg in history
+        )
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
             f"Background: {persona.background}\n"
@@ -74,6 +77,7 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
             f"- Focus: {persona.personality.focus}\n\n"
             "Communication Rules:\n"
             f"- Avoid: {persona.communication_rules.avoid}\n\n"
+            f"Conversation History:\n{history_str}\n\n"
             "Respond naturally as this stakeholder would, considering the conversation history."
         )
 
@@ -96,7 +100,7 @@ async def run_stakeholder_query(
     message: str,
     persona: Persona,
     project: Project,
-    history: list[Message],
+    history: list[dict],
 ) -> str:
     """Run a query through the stakeholder agent."""
     agent = get_stakeholder_agent()

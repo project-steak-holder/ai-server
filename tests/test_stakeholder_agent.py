@@ -13,7 +13,6 @@ from src.agents.stakeholder_agent import (
 )
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
-from src.schemas.message_model import Message
 
 
 @pytest.fixture
@@ -58,14 +57,16 @@ def sample_history():
     import uuid
 
     return [
-        Message(
+        dict(
             id=uuid.uuid4(),
             conversation_id=uuid.uuid4(),
+            role="user",
             content="What bikes do you have?",
         ),
-        Message(
+        dict(
             id=uuid.uuid4(),
             conversation_id=uuid.uuid4(),
+            role="ai",
             content="We have mountain bikes and road bikes.",
         ),
     ]
