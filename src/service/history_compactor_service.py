@@ -5,6 +5,7 @@ reduces token usage while preserving context
 Project StakeHolder
 """
 import os
+from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -38,7 +39,19 @@ class HistoryCompactorService:
     """Service for compacting and converting conversation history."""
 
     @staticmethod
-    def convert_to_dictlist(messages: list[Message]) -> list[dict]:
+    def _convert_to_dict(msg):
+        if hasattr(msg, "dict"):
+            return msg.dict()
+        elif hasattr(msg, "model_dump"):
+            return msg.model_dump()
+        elif isinstance(msg, dict):
+            return msg
+        else:
+            return msg.__dict__
+
+
+    @staticmethod
+    def _convert_to_dictlist(messages: list[Message]) -> list[dict]:
         """ Convert list of custom Message models
             to list of dicts for LLM use."""
         return [msg.model_dump() for msg in messages]
@@ -49,7 +62,7 @@ class HistoryCompactorService:
         """Summarize old messages while keeping the 10 most recent.
             Uses summarize_agent model."""
         # Convert to dict list for summarization
-        message_dict_list = HistoryCompactorService.convert_to_dictlist(messages)
+        message_dict_list = HistoryCompactorService._convert_to_dictlist(messages)
         # Summarize all but the 10 most recent messages
         if len(message_dict_list) > 10:
             # Summarize all except the 10 most recent
@@ -57,8 +70,9 @@ class HistoryCompactorService:
             recent_messages = message_dict_list[-10:]
             if old_messages:
                 summary = await summarize_agent.run(message_history=old_messages)
+                summary_dicts = [HistoryCompactorService._convert_to_dict() for msg in summary.new_messages()]
                 # Return the summary (as new dict) plus the 10 most recent
-                return summary.new_messages() + recent_messages
+                return summary_dicts + recent_messages
             else:
                 return recent_messages
         return message_dict_list

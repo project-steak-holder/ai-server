@@ -62,7 +62,9 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
         history = ctx.deps.history
         # Format history as a string using dict keys
         history_str = "\n".join(
-            f"{'User' if msg['role'] == 'user' else 'AI'}: {msg['content']}" for msg in history
+            f"{'User' if msg.get('role') == 'user' else 'AI'}: {msg.get('content', '')}"
+                for msg in history
+                if msg.get('content')
         )
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
