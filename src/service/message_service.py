@@ -1,3 +1,8 @@
+"""
+Message persistence service
+Project SteakHolder
+"""
+
 from src.repository.model_repository import MessageRepository
 from src.models.message import Message, MessageType
 

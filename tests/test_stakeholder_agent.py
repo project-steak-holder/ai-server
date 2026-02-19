@@ -4,6 +4,7 @@ Unit tests for PydanticAI Stakeholder Agent.
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
 
 from src.agents.stakeholder_agent import (
     AgentDependencies,
@@ -54,21 +55,9 @@ def sample_project():
 @pytest.fixture
 def sample_history():
     """Create sample conversation history."""
-    import uuid
-
     return [
-        dict(
-            id=uuid.uuid4(),
-            conversation_id=uuid.uuid4(),
-            role="user",
-            content="What bikes do you have?",
-        ),
-        dict(
-            id=uuid.uuid4(),
-            conversation_id=uuid.uuid4(),
-            role="ai",
-            content="We have mountain bikes and road bikes.",
-        ),
+        ModelRequest(parts=[UserPromptPart(content="What bikes do you have?")]),
+        ModelResponse(parts=[TextPart(content="We have mountain bikes and road bikes.")])
     ]
 
 

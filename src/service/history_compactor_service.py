@@ -5,11 +5,11 @@ reduces token usage while preserving context
 Project StakeHolder
 """
 import os
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from src.schemas.message_model import Message
+from src.schemas.message_model import Message, RoleEnum
 
 # Read LLM credentials and config from environment
 api_base_url = os.environ.get("AI_PROVIDER_BASE_URL", "")
@@ -38,45 +38,40 @@ Focus on system requirements and important details.
 class HistoryCompactorService:
     """Service for compacting and converting conversation history."""
 
-    @staticmethod
-    def _convert_to_dict(msg):
-        if hasattr(msg, "dict"):
-            return msg.dict()
-        elif hasattr(msg, "model_dump"):
-            return msg.model_dump()
-        elif isinstance(msg, dict):
-            return msg
-        else:
-            return msg.__dict__
-
 
     @staticmethod
-    def _convert_to_dictlist(messages: list[Message]) -> list[dict]:
-        """ Convert list of custom Message models
-            to list of dicts for LLM use."""
-        return [msg.model_dump() for msg in messages]
+    def _convert_to_modellist(messages: list[Message]) -> list[ModelMessage]:
+        """Convert list of Message models to list of ModelMessages."""
+        result = []
+        for msg in messages:
+            if msg.role == RoleEnum.user:
+                result.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
+            else:
+                result.append(ModelResponse(parts=[TextPart(content=msg.content)]))
+        return result
+
 
 
     @staticmethod
-    async def summarize_old_messages(messages: list[Message]) -> list[dict]:
+    async def summarize_old_messages(messages: list[Message]) -> list[ModelMessage]:
         """Summarize old messages while keeping the 10 most recent.
             Uses summarize_agent model."""
+        message_cutoff = 10
         # Convert to dict list for summarization
-        message_dict_list = HistoryCompactorService._convert_to_dictlist(messages)
-        # Summarize all but the 10 most recent messages
-        if len(message_dict_list) > 10:
-            # Summarize all except the 10 most recent
-            old_messages = message_dict_list[:-10]
-            recent_messages = message_dict_list[-10:]
+        model_list = HistoryCompactorService._convert_to_modellist(messages)
+        # Summarize all but the (message_cutoff) most recent messages
+        if len(model_list) > message_cutoff:
+            # Summarize all except the (message_cutoff) most recent
+            old_messages = model_list[:-message_cutoff]
+            recent_messages = model_list[-message_cutoff:]
             if old_messages:
                 summary = await summarize_agent.run(message_history=old_messages)
-                summary_dicts = [HistoryCompactorService._convert_to_dict() for msg in summary.new_messages()]
-                # Return the summary (as new dict) plus the 10 most recent
-                return summary_dicts + recent_messages
+                # Return the summary plus the (message_cutoff) most recent
+                return summary + recent_messages
             else:
                 return recent_messages
-        return message_dict_list
+        return model_list
 
 # instantiate Agent with summarize_model and the history processor
-# to summarize old (keeps 10 most recent) messages
+# to summarize old (keeps most recent) messages
 agent = Agent(summarize_model, history_processors=[HistoryCompactorService.summarize_old_messages])

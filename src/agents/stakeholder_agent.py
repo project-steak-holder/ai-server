@@ -6,7 +6,7 @@ Simulates a project stakeholder persona for interactive conversations.
 import os
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -20,7 +20,7 @@ class AgentDependencies(BaseModel):
 
     persona: Persona
     project: Project
-    history: list[dict] = Field(default_factory=list)
+    history: list[ModelMessage] = Field(default_factory=list)
 
 
 class AgentResponse(BaseModel):
@@ -30,7 +30,7 @@ class AgentResponse(BaseModel):
 
 
 # Initialize PydanticAI Agent
-def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
+def create_stakeholder_agent() -> Agent:
     """Create and configure the stakeholder agent."""
 
     # Get environment variables
@@ -60,11 +60,11 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
         persona = ctx.deps.persona
         project = ctx.deps.project
         history = ctx.deps.history
-        # Format history as a string using dict keys
+        # Format history as a string using ModelMessage attributes, fallback if missing
         history_str = "\n".join(
-            f"{'User' if msg.get('role') == 'user' else 'AI'}: {msg.get('content', '')}"
-                for msg in history
-                if msg.get('content')
+            f"{('User' if getattr(msg, 'role', None) == 'user' else 'AI')}: {getattr(msg, 'content', '')}"
+            for msg in history
+            if getattr(msg, 'content', None)
         )
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
@@ -87,10 +87,10 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
 
 
 # Singleton instance
-_agent: Agent[AgentDependencies, AgentResponse] | None = None
+_agent: Agent | None = None
 
 
-def get_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
+def get_stakeholder_agent() -> Agent:
     """Get or create the stakeholder agent singleton."""
     global _agent
     if _agent is None:
@@ -102,7 +102,7 @@ async def run_stakeholder_query(
     message: str,
     persona: Persona,
     project: Project,
-    history: list[dict],
+    history: list[ModelMessage],
 ) -> str:
     """Run a query through the stakeholder agent."""
     agent = get_stakeholder_agent()

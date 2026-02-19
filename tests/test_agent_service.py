@@ -7,10 +7,21 @@ unit tests for agent_service
 import uuid
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from pydantic_ai import ModelRequest, ModelResponse, TextPart, UserPromptPart
 
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
 from src.exceptions.llm_response_exception import LlmResponseException
+from src.schemas.message_model import Message, RoleEnum
+
+
+@pytest.fixture
+def mock_message_service():
+    service = AsyncMock()
+    service.get_conversation_history = AsyncMock(return_value=mock_history)
+    service.save_user_message = AsyncMock()
+    service.save_ai_message = AsyncMock()
+    return service
 
 
 def test_load_persona(agent_service):
@@ -28,24 +39,32 @@ def test_load_project(agent_service):
     assert project.project_name == "Golden Bikes Rental System"
 
 
+# Move mock_conversation_id and mock_history here for guaranteed visibility
+mock_conversation_id = uuid.uuid4()
+mock_history = [
+    Message(id=None, conversation_id=mock_conversation_id, content="Hello!", role=RoleEnum.user),
+    Message(id=None, conversation_id=mock_conversation_id, content="Hi!", role=RoleEnum.ai),
+]
+
+
 @pytest.mark.anyio
-async def test_load_history(agent_service):
+async def test_load_history(agent_service, mock_message_service):
     """test loading history from message service"""
     user_id = "test_user"
-    conversation_id = str(uuid.uuid4())
+    conversation_id = mock_conversation_id
 
-    history = await agent_service.load_history(
-        user_id=user_id, conversation_id=conversation_id,
-    )
+    mock_message_service.get_conversation_history.return_value = mock_history
+    agent_service.message_service = mock_message_service
 
-    # Verify message service was called correctly
-    agent_service.message_service.get_conversation_history.assert_called_once_with(
+    history = await agent_service.load_history(user_id=user_id, conversation_id=conversation_id)
+
+    mock_message_service.get_conversation_history.assert_called_once_with(
         user_id=user_id,
         conversation_id=conversation_id,
     )
-
-    # History should be empty list from mock
-    assert history == []
+    assert isinstance(history, list)
+    assert all(isinstance(msg, Message) for msg in history)
+    assert history == mock_history
 
 
 def test_set_request(agent_service):
@@ -62,20 +81,10 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
     conversation_id = str(uuid.uuid4())
     content = "What bikes do you have?"
 
-    # Prepare a compacted history with roles
+    # Prepare a compacted history as ModelRequest/ModelResponse objects
     compacted_history = [
-        dict(
-            id=uuid.uuid4(),
-            conversation_id=uuid.uuid4(),
-            content="What bikes do you have?",
-            role="user",
-        ),
-        dict(
-            id=uuid.uuid4(),
-            conversation_id=uuid.uuid4(),
-            content="We have mountain bikes and road bikes.",
-            role="ai",
-        ),
+        ModelRequest(parts=[UserPromptPart(content="What bikes do you have?")]),
+        ModelResponse(parts=[TextPart(content="We have mountain bikes and road bikes.")]),
     ]
 
     # Patch the compactor and run_stakeholder_query
@@ -109,8 +118,9 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
         mock_run.assert_called_once()
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["message"] == content
-        # Check that the compacted history has the correct roles
-        assert all("role" in msg for msg in call_kwargs["history"])
+        # Check that the compacted history has the correct types
+        assert isinstance(call_kwargs["history"][0], ModelRequest)
+        assert isinstance(call_kwargs["history"][1], ModelResponse)
         # Verify result structure
         assert result["status"] == "success"
         assert "response" in result

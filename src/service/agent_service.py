@@ -3,16 +3,14 @@ AgentService: Main service for agentic AI stakeholder simulation.
 This service will orchestrate conversation flow,
 persistence, persona, project context, and LLM interaction for a project stakeholder agent.
 """
+from pydantic_ai import ModelMessage
 
 from src.agents.stakeholder_agent import run_stakeholder_query
 from src.exceptions.llm_response_exception import LlmResponseException
-from src.schemas.message_model import Message
 from src.service.history_compactor_service import HistoryCompactorService
 from src.service.persona_service import PersonaService
 from src.service.project_service import ProjectService
 from src.service.message_service import MessageService
-from src.schemas.message_model import RoleEnum
-from src.models.message import MessageType
 
 
 class AgentService:
@@ -24,46 +22,53 @@ class AgentService:
         project_service: ProjectService,
         message_service: MessageService,
     ):
+
         # dependencies injected via FastAPI
         self.persona_service = persona_service
         self.project_service = project_service
         self.message_service = message_service
+
+
 
     def load_persona(self):
         """loads from persona service"""
         self.persona_service.load_persona()
         return self.persona_service.get_persona()
 
+
+
     def load_project(self):
         """loads from project service"""
         self.project_service.load_project()
         return self.project_service.get_project()
 
+
+
     async def load_history(self, user_id: str, conversation_id: str):
         """loads from message service"""
-        history = await self.message_service.get_conversation_history(
+        return await self.message_service.get_conversation_history(
             user_id=user_id, conversation_id=conversation_id
         )
-        return [
-            Message(
-                id=msg.id,
-                conversation_id=msg.conversation_id,
-                content=msg.content,
-                role=RoleEnum.user if msg.type == MessageType.USER else RoleEnum.ai,
-            )
-            for msg in history
-        ]
+
+
 
     def set_request(self, request: str):
         """set from request payload in orchestrator method"""
         self.request = request
 
+
+
     def set_conversation_id(self, conversation_id: str):
         """set from request payload in orchestrator method"""
         self.conversation_id = conversation_id
 
+
+
     async def process_agent_query(
-        self, user_id: str, conversation_id: str, content: str
+                                    self,
+                                    user_id: str,
+                                    conversation_id: str,
+                                    content: str
     ) -> dict:
         """Main Orchestrator Method
         receives request payload from controller as dict
@@ -80,15 +85,14 @@ class AgentService:
         persona = self.load_persona()
         project = self.load_project()
         history = await self.load_history(user_id, conversation_id)  # list[Message]
-        # Compactor returns list[dict] for LLM/agent
-        compacted_history: list[dict] = await HistoryCompactorService.summarize_old_messages(history)
+        compacted_history: list[ModelMessage] = await HistoryCompactorService.summarize_old_messages(history)
 
         try:
             response_content = await run_stakeholder_query(
                 message=content,
                 persona=persona,
                 project=project,
-                history=compacted_history or [],  # list[dict]
+                history=compacted_history
             )
         except LlmResponseException as e:
             return {
