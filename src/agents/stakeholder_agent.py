@@ -6,9 +6,11 @@ Simulates a project stakeholder persona for interactive conversations.
 import os
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext, ModelMessage
+from pydantic_ai import Agent, RunContext, ModelMessage, ModelRequest
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from typing import cast
+
 
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.persona_model import Persona
@@ -30,7 +32,7 @@ class AgentResponse(BaseModel):
 
 
 # Initialize PydanticAI Agent
-def create_stakeholder_agent() -> Agent:
+def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     """Create and configure the stakeholder agent."""
 
     # Get environment variables
@@ -61,11 +63,13 @@ def create_stakeholder_agent() -> Agent:
         project = ctx.deps.project
         history = ctx.deps.history
         # Format history as a string using ModelMessage attributes, fallback if missing
-        history_str = "\n".join(
-            f"{('User' if getattr(msg, 'role', None) == 'user' else 'AI')}: {getattr(msg, 'content', '')}"
-            for msg in history
-            if getattr(msg, 'content', None)
-        )
+        history_lines = []
+        for msg in history:
+            role = "User" if isinstance(msg, ModelRequest) else "AI"
+            content_parts = [part.content for part in getattr(msg, "parts", []) if hasattr(part, "content")]
+            if content_parts:
+                history_lines.append(f"{role}: {' '.join(content_parts)}")
+        history_str = "\n".join(history_lines)
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
             f"Background: {persona.background}\n"
@@ -82,15 +86,15 @@ def create_stakeholder_agent() -> Agent:
             f"Conversation History:\n{history_str}\n\n"
             "Respond naturally as this stakeholder would, considering the conversation history."
         )
-
-    return agent
+    # nested cast to ensure type safety(safe for mypy in CI/CD pipeline)
+    return cast(Agent[AgentDependencies, AgentResponse], cast(object, agent))
 
 
 # Singleton instance
-_agent: Agent | None = None
+_agent: Agent[AgentDependencies, AgentResponse] | None = None
 
 
-def get_stakeholder_agent() -> Agent:
+def get_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     """Get or create the stakeholder agent singleton."""
     global _agent
     if _agent is None:
@@ -113,7 +117,6 @@ async def run_stakeholder_query(
         project=project,
         history=history,
     )
-
     try:
         result = await agent.run(message, deps=deps)
         return result.output.content

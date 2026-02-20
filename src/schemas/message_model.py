@@ -17,14 +17,13 @@ from pydantic import BaseModel, ConfigDict
 from enum import Enum
 
 class RoleEnum(str, Enum):
-    """Defines role of message sender,
-       either user or assistant.
-    """
+    """Defines role of message sender"""
     user = "user"
     ai = "ai"
 
 
 class Message(BaseModel):
+    """Pydantic model for individual messages in a conversation."""
     model_config = ConfigDict(
         # Allow reading from ORM objects (needed for SQLAlchemy)
         from_attributes=True,

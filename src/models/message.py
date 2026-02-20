@@ -33,7 +33,7 @@ class Message(Base):
         nullable=False,
     )
     content = Column(Text, nullable=False)
-    type = Column(SQLEnum(MessageType), nullable=False)
+    type: MessageType = Column(SQLEnum(MessageType), nullable=False)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

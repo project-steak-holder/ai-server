@@ -6,6 +6,7 @@ import uuid
 import pytest
 from unittest.mock import AsyncMock, patch
 from pydantic_ai import ModelRequest, ModelResponse, TextPart
+import types
 
 from src.schemas.message_model import Message, RoleEnum
 from src.service.history_compactor_service import HistoryCompactorService
@@ -13,8 +14,12 @@ from src.service.history_compactor_service import HistoryCompactorService
 
 @pytest.fixture(autouse=True)
 def mock_summarize_agent_run():
+    """Fixture to mock summarize_agent.run"""
     with patch("src.service.history_compactor_service.summarize_agent.run", new_callable=AsyncMock) as mock_run:
-        mock_run.return_value = [ModelResponse(parts=[TextPart(content="Summary")])]
+        mock_result = types.SimpleNamespace(
+            all_messages=lambda: [ModelResponse(parts=[TextPart(content="Summary")])]
+        )
+        mock_run.return_value = mock_result
         yield
 
 

@@ -27,6 +27,8 @@ class AgentService:
         self.persona_service = persona_service
         self.project_service = project_service
         self.message_service = message_service
+        self.request: str | None = None
+        self.conversation_id: str | None = None
 
 
 
