@@ -12,7 +12,7 @@ from pydantic_ai import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
 from src.exceptions.llm_response_exception import LlmResponseException
-from src.schemas.message_model import Message, RoleEnum
+from src.schemas.message_model import Message, MessageType
 
 
 @pytest.fixture
@@ -42,8 +42,18 @@ def test_load_project(agent_service):
 # Move mock_conversation_id and mock_history here for guaranteed visibility
 mock_conversation_id = uuid.uuid4()
 mock_history = [
-    Message(id=None, conversation_id=mock_conversation_id, content="Hello!", type=RoleEnum.user),
-    Message(id=None, conversation_id=mock_conversation_id, content="Hi!", type=RoleEnum.ai),
+    Message(
+        id=uuid.uuid4(),
+        conversation_id=mock_conversation_id,
+        content="Hello!",
+        type=MessageType.USER,
+    ),
+    Message(
+        id=uuid.uuid4(),
+        conversation_id=mock_conversation_id,
+        content="Hi!",
+        type=MessageType.AI,
+    ),
 ]
 
 

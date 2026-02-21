@@ -5,7 +5,7 @@ Unit tests for MessageService.
 import pytest
 import uuid
 
-from src.models.message import MessageType
+from src.schemas.message_model import MessageType
 
 
 @pytest.mark.anyio

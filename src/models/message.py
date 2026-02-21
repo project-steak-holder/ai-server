@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from enum import Enum
 import uuid
 from .base import Base
 
@@ -13,10 +12,7 @@ from sqlalchemy import (
     Index,
 )
 
-
-class MessageType(Enum):
-    USER = "user"
-    AI = "ai"
+from src.schemas.message_model import MessageType
 
 
 class Message(Base):

@@ -19,7 +19,8 @@ from src.schemas.persona_model import (
     PersonalityFocus,
 )
 from src.schemas.project_model import Project
-from src.models.message import Message as MessageModel, MessageType
+from src.models.message import Message as MessageModel
+from src.schemas.message_model import MessageType
 from datetime import datetime, timezone
 
 

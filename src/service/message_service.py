@@ -4,7 +4,8 @@ Project SteakHolder
 """
 
 from src.repository.model_repository import MessageRepository
-from src.models.message import Message, MessageType
+from src.models.message import Message
+from src.schemas.message_model import MessageType
 
 
 class MessageService:

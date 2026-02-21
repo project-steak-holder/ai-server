@@ -12,18 +12,18 @@ contains:
 """
 
 import uuid
-from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
-class RoleEnum(str, Enum):
-    """Defines role of message sender"""
-    user = "user"
-    ai = "ai"
+
+class MessageType(Enum):
+    USER = "user"
+    AI = "ai"
 
 
 class Message(BaseModel):
     """Pydantic model for individual messages in a conversation."""
+
     model_config = ConfigDict(
         # Allow reading from ORM objects (needed for SQLAlchemy)
         from_attributes=True,
@@ -31,9 +31,9 @@ class Message(BaseModel):
     )
 
     # more fields available from orm message model if needed
-    id: Optional[uuid.UUID]
+    id: uuid.UUID
     conversation_id: uuid.UUID
     content: str
     # alias between role and type
     # to match both DB model and agent framework expectations
-    role: RoleEnum = Field(alias="type")
+    role: MessageType = Field(alias="type")
