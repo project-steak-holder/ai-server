@@ -13,7 +13,7 @@ contains:
 
 import uuid
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 class RoleEnum(str, Enum):
@@ -27,10 +27,13 @@ class Message(BaseModel):
     model_config = ConfigDict(
         # Allow reading from ORM objects (needed for SQLAlchemy)
         from_attributes=True,
+        populate_by_name=True,  # Allow using alias 'type' in constructors
     )
 
     # more fields available from orm message model if needed
     id: Optional[uuid.UUID]
     conversation_id: uuid.UUID
     content: str
-    role: RoleEnum
+    # alias between role and type
+    # to match both DB model and agent framework expectations
+    role: RoleEnum = Field(alias="type")

@@ -17,7 +17,7 @@ def mock_summarize_agent_run():
     """Fixture to mock summarize_agent.run"""
     with patch("src.service.history_compactor_service.summarize_agent.run", new_callable=AsyncMock) as mock_run:
         mock_result = types.SimpleNamespace(
-            all_messages=lambda: [ModelResponse(parts=[TextPart(content="Summary")])]
+            output="Summary"
         )
         mock_run.return_value = mock_result
         yield
@@ -31,7 +31,7 @@ async def test_summarize_old_messages_no_needed_summarization():
             id=uuid.uuid4(),
             conversation_id=uuid.uuid4(),
             content=f"Message {i}",
-            role=RoleEnum.user if i % 2 == 0 else RoleEnum.ai
+            type=RoleEnum.user if i % 2 == 0 else RoleEnum.ai
         )
         for i in range(5)
     ]
@@ -47,7 +47,7 @@ async def test_summarize_old_messages_with_summarization():
             id=uuid.uuid4(),
             conversation_id=uuid.uuid4(),
             content=f"Message {i}",
-            role=RoleEnum.user if i % 2 == 0 else RoleEnum.ai
+            type=RoleEnum.user if i % 2 == 0 else RoleEnum.ai
         )
         for i in range(15)
     ]

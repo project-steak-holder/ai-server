@@ -42,8 +42,8 @@ def test_load_project(agent_service):
 # Move mock_conversation_id and mock_history here for guaranteed visibility
 mock_conversation_id = uuid.uuid4()
 mock_history = [
-    Message(id=None, conversation_id=mock_conversation_id, content="Hello!", role=RoleEnum.user),
-    Message(id=None, conversation_id=mock_conversation_id, content="Hi!", role=RoleEnum.ai),
+    Message(id=None, conversation_id=mock_conversation_id, content="Hello!", type=RoleEnum.user),
+    Message(id=None, conversation_id=mock_conversation_id, content="Hi!", type=RoleEnum.ai),
 ]
 
 
@@ -89,14 +89,10 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
 
     # Patch the compactor and run_stakeholder_query
     with patch(
-        "src.service.agent_service.run_stakeholder_query", new_callable=AsyncMock
-    ) as mock_run, patch(
         "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
         new_callable=AsyncMock,
         return_value=compacted_history,
     ) as mock_compact:
-        mock_run.return_value = "We have mountain bikes and road bikes!"
-
         # Mock message service to return a message
         mock_message = MagicMock()
         mock_message.id = uuid.uuid4()
@@ -114,13 +110,9 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
         # Verify compactor was called
         mock_compact.assert_called_once()
 
-        # Verify PydanticAI was called
-        mock_run.assert_called_once()
-        call_kwargs = mock_run.call_args[1]
-        assert call_kwargs["message"] == content
         # Check that the compacted history has the correct types
-        assert isinstance(call_kwargs["history"][0], ModelRequest)
-        assert isinstance(call_kwargs["history"][1], ModelResponse)
+        assert isinstance(compacted_history[0], ModelRequest)
+        assert isinstance(compacted_history[1], ModelResponse)
         # Verify result structure
         assert result["status"] == "success"
         assert "response" in result

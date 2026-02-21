@@ -6,7 +6,7 @@ Simulates a project stakeholder persona for interactive conversations.
 import os
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext, ModelMessage, ModelRequest
+from pydantic_ai import Agent, RunContext, ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from typing import cast
@@ -62,14 +62,6 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
         persona = ctx.deps.persona
         project = ctx.deps.project
         history = ctx.deps.history
-        # Format history as a string using ModelMessage attributes, fallback if missing
-        history_lines = []
-        for msg in history:
-            role = "User" if isinstance(msg, ModelRequest) else "AI"
-            content_parts = [part.content for part in getattr(msg, "parts", []) if hasattr(part, "content")]
-            if content_parts:
-                history_lines.append(f"{role}: {' '.join(content_parts)}")
-        history_str = "\n".join(history_lines)
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
             f"Background: {persona.background}\n"
@@ -83,7 +75,7 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
             f"- Focus: {persona.personality.focus}\n\n"
             "Communication Rules:\n"
             f"- Avoid: {persona.communication_rules.avoid}\n\n"
-            f"Conversation History:\n{history_str}\n\n"
+            f"Conversation History:\n{history}\n\n"
             "Respond naturally as this stakeholder would, considering the conversation history."
         )
     # nested cast to ensure type safety(safe for mypy in CI/CD pipeline)

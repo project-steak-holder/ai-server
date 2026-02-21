@@ -29,7 +29,7 @@ def sample_persona():
     return Persona(
         name="Owen",
         role="Owner, Golden Bikes",
-        location="San Francisco",
+        location="Golden, CO",
         background=["Entrepreneur", "Cycling enthusiast"],
         goals=["Build successful bike rental business"],
         expertise_level=ExpertiseLevel(business="high", technology="medium"),

@@ -6,14 +6,13 @@ Project StakeHolder
 """
 import os
 import uuid
+from typing import cast
 
 from pydantic_ai import Agent, ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from src.agents.stakeholder_agent import AgentDependencies, AgentResponse
 from src.schemas.message_model import Message, RoleEnum
-from src.exceptions.invalid_message_id_exception import InvalidMessageIdException
 
 # Read LLM credentials and config from environment
 api_base_url = os.environ.get("AI_PROVIDER_BASE_URL", "")
@@ -31,12 +30,12 @@ summarize_model = OpenAIChatModel(
 )
 
 # Use less expensive (by token count) model to summarize old messages.
-summarize_agent = Agent[AgentDependencies, AgentResponse](
+summarize_agent = Agent[list[str], str](
     model=summarize_model,
     instructions="""
-Summarize this conversation, omitting small talk and unrelated topics.
-Focus on system requirements and important details.
-""",
+        Summarize this conversation, omitting small talk and unrelated topics.
+        Focus on system requirements and important details.
+        """
 )
 
 class HistoryCompactorService:
@@ -59,22 +58,26 @@ class HistoryCompactorService:
     @staticmethod
     async def summarize_old_messages(messages: list[Message]) -> list[ModelRequest | ModelResponse]:
         """Summarize old messages while keeping the 10 most recent.
-            Uses summarize_agent model."""
+        Uses summarize_agent model."""
         message_cutoff = 10
-        # Convert to dict list for summarization
-        model_list = HistoryCompactorService._convert_to_modellist(messages)
-        # Summarize all but the (message_cutoff) most recent messages
-        if len(model_list) > message_cutoff:
-            # Summarize all except the (message_cutoff) most recent
-            old_messages = model_list[:-message_cutoff]
-            recent_messages = model_list[-message_cutoff:]
-            if old_messages:
-                summary = await summarize_agent.run(message_history=old_messages)
-                # Return the summary plus the (message_cutoff) most recent
-                return summary.all_messages() + recent_messages
-            else:
-                return recent_messages
-        return model_list
+        if len(messages) > message_cutoff:
+            old_messages = messages[:-message_cutoff]
+            recent_messages = messages[-message_cutoff:]
+            # Convert old messages to list of strings
+            old_message_strings = HistoryCompactorService._messages_to_string_list(
+                HistoryCompactorService._convert_to_modellist(old_messages)
+            )
+            # Call summarize_agent with list of strings
+            summary = await summarize_agent.run(old_message_strings)
+            # Wrap summary as ModelResponse
+            summary_response = ModelResponse(parts=[TextPart(content=summary.output)])
+            # Convert recent messages to ModelRequest | ModelResponse
+            recent_model_messages = HistoryCompactorService._convert_to_modellist(recent_messages)
+            return [summary_response] + recent_model_messages
+        else:
+            return HistoryCompactorService._convert_to_modellist(messages)
+
+
 
     @staticmethod
     async def summarize_processor(messages: list[ModelRequest | ModelResponse]) -> list[ModelRequest | ModelResponse]:
@@ -91,53 +94,57 @@ class HistoryCompactorService:
                 if isinstance(conversation_id, str):
                     conversation_id = uuid.UUID(conversation_id)
                 elif not isinstance(conversation_id, uuid.UUID):
-                    raise InvalidMessageIdException("Invalid conversation_id")
+                    raise ValueError("Invalid conversation_id")
                 if not message_id or (isinstance(message_id, str) and not uuid.UUID(message_id)):
-                    raise InvalidMessageIdException("Invalid message_id")
-            except InvalidMessageIdException:
+                    raise ValueError("Invalid message_id")
+            except ValueError:
                 # IDs not needed for summarization,
                 # use dummy UUIDs to satisfy type requirement without errors
                 dummy_id = uuid.UUID("00000000-0000-0000-0000-000000000DUM")
                 conversation_id =  dummy_id
                 message_id = dummy_id
             if isinstance(msg, ModelRequest):
-                if msg.parts and isinstance(msg.parts[0], UserPromptPart):
-                    part = msg.parts[0]
-                    content = part.content
-                    if not isinstance(content, str):
-                        content = str(content)
-                    msg_list.append(Message(
-                        id=message_id,
-                        conversation_id=conversation_id,
-                        role=RoleEnum.user,
-                        content=content
-                    ))
-                else:
-                    continue
+                for part in msg.parts:
+                    if isinstance(part, UserPromptPart):
+                        content = part.content
+                        if not isinstance(content, str):
+                            content = str(content)
+                        msg_list.append(Message(
+                            id=message_id,
+                            conversation_id=conversation_id,
+                            type=RoleEnum.user,
+                            content=content
+                        ))
             elif isinstance(msg, ModelResponse):
-                if msg.parts and isinstance(msg.parts[0], TextPart):
-                    text_part = msg.parts[0]
-                    content = text_part.content
-                    if not isinstance(content, str):
-                        content = str(content)
-                    msg_list.append(Message(
-                        id=message_id,
-                        conversation_id=conversation_id,
-                        role=RoleEnum.ai,
-                        content=content
-                    ))
-                else:
-                    continue
+                for part in msg.parts:
+                    if isinstance(part, TextPart):
+                        content = part.content
+                        if not isinstance(content, str):
+                            content = str(content)
+                        msg_list.append(Message(
+                            id=message_id,
+                            conversation_id=conversation_id,
+                            type=RoleEnum.ai,
+                            content=content
+                        ))
             else:
                 continue
 
         return await HistoryCompactorService.summarize_old_messages(msg_list)
 
-
-
-# instantiate Agent with summarize_model and the history processor
-# to summarize old (keeps most recent) messages
-agent: Agent[AgentDependencies, AgentResponse] = Agent[AgentDependencies, AgentResponse](
-       summarize_model,
-       history_processors=[HistoryCompactorService.summarize_processor]
-   )
+    @staticmethod
+    def _messages_to_string_list(messages: list[ModelRequest | ModelResponse]) -> list[str]:
+        """Convert a list of ModelRequest | ModelResponse to a list of their contents as strings."""
+        contents = []
+        for msg in messages:
+            if isinstance(msg, ModelRequest):
+                for part in msg.parts:
+                    if isinstance(part, UserPromptPart):
+                        user_part = cast(UserPromptPart, part)
+                        contents.append(str(user_part.content))
+            elif isinstance(msg, ModelResponse):
+                for part in msg.parts:
+                    if isinstance(part, TextPart):
+                        text_part = cast(TextPart, part)
+                        contents.append(str(text_part.content))
+        return contents
