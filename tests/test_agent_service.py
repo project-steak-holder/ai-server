@@ -102,11 +102,18 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
     ]
 
     # Patch the compactor and run_stakeholder_query
-    with patch(
-        "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-        new_callable=AsyncMock,
-        return_value=compacted_history,
-    ) as mock_compact:
+    with (
+        patch(
+            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
+            new_callable=AsyncMock,
+            return_value=compacted_history,
+        ) as mock_compact,
+        patch(
+            "src.service.agent_service.run_stakeholder_query",
+            new_callable=AsyncMock,
+            return_value="We have mountain bikes and road bikes!",
+        ) as mock_run,
+    ):
         # Mock message service to return a message
         mock_message = MagicMock()
         mock_message.id = uuid.uuid4()
@@ -121,8 +128,9 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
             content=content,
         )
 
-        # Verify compactor was called
+        # Verify compactor and agent were called
         mock_compact.assert_called_once()
+        mock_run.assert_called_once()
 
         # Check that the compacted history has the correct types
         assert isinstance(compacted_history[0], ModelRequest)
