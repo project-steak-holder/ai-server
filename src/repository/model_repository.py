@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from src.repository.base import BaseCRUDRepository
-from src.models.message import Message, MessageType
+from src.models.message import Message
+from src.schemas.message_model import MessageType
 
 
 class MessageRepository(BaseCRUDRepository[Message]):

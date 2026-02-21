@@ -4,6 +4,7 @@ Unit tests for PydanticAI Stakeholder Agent.
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
 
 from src.agents.stakeholder_agent import (
     AgentDependencies,
@@ -13,7 +14,6 @@ from src.agents.stakeholder_agent import (
 )
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
-from src.schemas.message_model import Message
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def sample_persona():
     return Persona(
         name="Owen",
         role="Owner, Golden Bikes",
-        location="San Francisco",
+        location="Golden, CO",
         background=["Entrepreneur", "Cycling enthusiast"],
         goals=["Build successful bike rental business"],
         expertise_level=ExpertiseLevel(business="high", technology="medium"),
@@ -55,19 +55,9 @@ def sample_project():
 @pytest.fixture
 def sample_history():
     """Create sample conversation history."""
-    import uuid
-
     return [
-        Message(
-            id=uuid.uuid4(),
-            conversation_id=uuid.uuid4(),
-            content="What bikes do you have?",
-        ),
-        Message(
-            id=uuid.uuid4(),
-            conversation_id=uuid.uuid4(),
-            content="We have mountain bikes and road bikes.",
-        ),
+        ModelRequest(parts=[UserPromptPart(content="What bikes do you have?")]),
+        ModelResponse(parts=[TextPart(content="We have mountain bikes and road bikes.")])
     ]
 
 

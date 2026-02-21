@@ -6,14 +6,15 @@ Simulates a project stakeholder persona for interactive conversations.
 import os
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from typing import cast
+
 
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
-from src.schemas.message_model import Message
 
 
 class AgentDependencies(BaseModel):
@@ -21,7 +22,7 @@ class AgentDependencies(BaseModel):
 
     persona: Persona
     project: Project
-    history: list[Message] = Field(default_factory=list)
+    history: list[ModelMessage] = Field(default_factory=list)
 
 
 class AgentResponse(BaseModel):
@@ -56,11 +57,10 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     )
 
     # Create agent with system prompt
-    @agent.system_prompt
+    @agent.instructions
     def stakeholder_system_prompt(ctx: RunContext[AgentDependencies]) -> str:
         persona = ctx.deps.persona
         project = ctx.deps.project
-
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
             f"Background: {persona.background}\n"
@@ -77,7 +77,8 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
             "Respond naturally as this stakeholder would, considering the conversation history."
         )
 
-    return agent
+    # nested cast to ensure type safety(safe for mypy in CI/CD pipeline)
+    return cast(Agent[AgentDependencies, AgentResponse], cast(object, agent))
 
 
 # Singleton instance
@@ -96,7 +97,7 @@ async def run_stakeholder_query(
     message: str,
     persona: Persona,
     project: Project,
-    history: list[Message],
+    history: list[ModelMessage],
 ) -> str:
     """Run a query through the stakeholder agent."""
     agent = get_stakeholder_agent()
@@ -107,9 +108,8 @@ async def run_stakeholder_query(
         project=project,
         history=history,
     )
-
     try:
-        result = await agent.run(message, deps=deps)
+        result = await agent.run(message, deps=deps, message_history=history)
         return result.output.content
     except Exception as e:
         raise LlmResponseException(

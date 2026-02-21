@@ -4,9 +4,12 @@ This service will orchestrate conversation flow,
 persistence, persona, project context, and LLM interaction for a project stakeholder agent.
 """
 
+from pydantic_ai import ModelMessage
+
 from src.agents.stakeholder_agent import run_stakeholder_query
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.message_model import Message
+from src.service.history_compactor_service import HistoryCompactorService
 from src.service.persona_service import PersonaService
 from src.service.project_service import ProjectService
 from src.service.message_service import MessageService
@@ -21,10 +24,13 @@ class AgentService:
         project_service: ProjectService,
         message_service: MessageService,
     ):
+
         # dependencies injected via FastAPI
         self.persona_service = persona_service
         self.project_service = project_service
         self.message_service = message_service
+        self.request: str | None = None
+        self.conversation_id: str | None = None
 
     def load_persona(self):
         """loads from persona service"""
@@ -38,10 +44,13 @@ class AgentService:
 
     async def load_history(self, user_id: str, conversation_id: str):
         """loads from message service"""
-        history = await self.message_service.get_conversation_history(
+        db_messages = await self.message_service.get_conversation_history(
             user_id=user_id, conversation_id=conversation_id
         )
-        return [Message.model_validate(msg, from_attributes=True) for msg in history]
+
+        return [
+            Message.model_validate(msg, from_attributes=True) for msg in db_messages
+        ]
 
     def set_request(self, request: str):
         """set from request payload in orchestrator method"""
@@ -68,14 +77,17 @@ class AgentService:
 
         persona = self.load_persona()
         project = self.load_project()
-        history = await self.load_history(user_id, conversation_id)
+        history = await self.load_history(user_id, conversation_id)  # list[Message]
+        compacted_history: list[
+            ModelMessage
+        ] = await HistoryCompactorService.summarize_old_messages(history)
 
         try:
             response_content = await run_stakeholder_query(
                 message=content,
                 persona=persona,
                 project=project,
-                history=history or [],
+                history=compacted_history,
             )
         except LlmResponseException as e:
             return {
