@@ -66,7 +66,9 @@ async def test_load_history(agent_service, mock_message_service):
     mock_message_service.get_conversation_history.return_value = mock_history
     agent_service.message_service = mock_message_service
 
-    history = await agent_service.load_history(user_id=user_id, conversation_id=conversation_id)
+    history = await agent_service.load_history(
+        user_id=user_id, conversation_id=conversation_id
+    )
 
     mock_message_service.get_conversation_history.assert_called_once_with(
         user_id=user_id,
@@ -94,7 +96,9 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
     # Prepare a compacted history as ModelRequest/ModelResponse objects
     compacted_history = [
         ModelRequest(parts=[UserPromptPart(content="What bikes do you have?")]),
-        ModelResponse(parts=[TextPart(content="We have mountain bikes and road bikes.")]),
+        ModelResponse(
+            parts=[TextPart(content="We have mountain bikes and road bikes.")]
+        ),
     ]
 
     # Patch the compactor and run_stakeholder_query
@@ -137,13 +141,14 @@ async def test_process_agent_query_handles_llm_error(agent_service):
     content = "Test message"
 
     # Patch the compactor to return an empty list
-    with patch(
-        "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-        new_callable=AsyncMock,
-        return_value=[],
-    ) as mock_compact, patch(
-        "src.service.agent_service.run_stakeholder_query"
-    ) as mock_run:
+    with (
+        patch(
+            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
+            new_callable=AsyncMock,
+            return_value=[],
+        ) as mock_compact,
+        patch("src.service.agent_service.run_stakeholder_query") as mock_run,
+    ):
         mock_run.side_effect = LlmResponseException(
             message="LLM timeout", details={"error": "timeout"}
         )
