@@ -4,21 +4,24 @@ Test class for HistoryCompactorService.
 
 import uuid
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from pydantic_ai import ModelRequest, ModelResponse, TextPart
-import types
 
-from src.schemas.message_model import Message, RoleEnum
+from src.schemas.message_model import Message, MessageType
 from src.service.history_compactor_service import HistoryCompactorService
 
 
 @pytest.fixture(autouse=True)
-def mock_summarize_agent_run():
+def mock_summarize_agent_run_with_five_messages():
     """Fixture to mock summarize_agent.run"""
-    with patch("src.service.history_compactor_service.summarize_agent.run", new_callable=AsyncMock) as mock_run:
-        mock_result = types.SimpleNamespace(
-            output="Summary"
-        )
+    with patch(
+        "src.service.history_compactor_service.summarize_agent.run",
+        new_callable=AsyncMock,
+    ) as mock_run:
+        mock_result = MagicMock()
+        mock_result.new_messages.return_value = [
+            ModelResponse(parts=[TextPart(content="Summary of old messages")])
+        ]
         mock_run.return_value = mock_result
         yield
 
@@ -31,13 +34,14 @@ async def test_summarize_old_messages_no_needed_summarization():
             id=uuid.uuid4(),
             conversation_id=uuid.uuid4(),
             content=f"Message {i}",
-            type=RoleEnum.user if i % 2 == 0 else RoleEnum.ai
+            type=MessageType.USER if i % 2 == 0 else MessageType.AI,
         )
         for i in range(5)
     ]
     result = await HistoryCompactorService.summarize_old_messages(messages)
     assert len(result) == 5
     assert all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in result)
+
 
 @pytest.mark.anyio
 async def test_summarize_old_messages_with_summarization():
@@ -47,7 +51,7 @@ async def test_summarize_old_messages_with_summarization():
             id=uuid.uuid4(),
             conversation_id=uuid.uuid4(),
             content=f"Message {i}",
-            type=RoleEnum.user if i % 2 == 0 else RoleEnum.ai
+            type=MessageType.USER if i % 2 == 0 else MessageType.AI,
         )
         for i in range(15)
     ]
