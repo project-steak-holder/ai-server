@@ -57,11 +57,10 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     )
 
     # Create agent with system prompt
-    @agent.system_prompt
+    @agent.instructions
     def stakeholder_system_prompt(ctx: RunContext[AgentDependencies]) -> str:
         persona = ctx.deps.persona
         project = ctx.deps.project
-        history = ctx.deps.history
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
             f"Background: {persona.background}\n"
@@ -75,9 +74,9 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
             f"- Focus: {persona.personality.focus}\n\n"
             "Communication Rules:\n"
             f"- Avoid: {persona.communication_rules.avoid}\n\n"
-            f"Conversation History:\n{history}\n\n"
             "Respond naturally as this stakeholder would, considering the conversation history."
         )
+
     # nested cast to ensure type safety(safe for mypy in CI/CD pipeline)
     return cast(Agent[AgentDependencies, AgentResponse], cast(object, agent))
 
@@ -110,7 +109,7 @@ async def run_stakeholder_query(
         history=history,
     )
     try:
-        result = await agent.run(message, deps=deps)
+        result = await agent.run(message, deps=deps, message_history=history)
         return result.output.content
     except Exception as e:
         raise LlmResponseException(
