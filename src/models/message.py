@@ -1,17 +1,13 @@
+import uuid
 from datetime import datetime, timezone
 from enum import Enum
-import uuid
-from .base import Base
 
-from sqlalchemy import (
-    UUID,
-    Column,
-    Text,
-    DateTime,
-    ForeignKey,
-    Enum as SQLEnum,
-    Index,
-)
+from sqlalchemy import UUID, Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKey, Index, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from .base import Base
 
 
 class MessageType(Enum):
@@ -33,7 +29,7 @@ class Message(Base):
         nullable=False,
     )
     content = Column(Text, nullable=False)
-    type: Column[MessageType] = Column(SQLEnum(MessageType), nullable=False)
+    type: Mapped[MessageType] = mapped_column(SQLEnum(MessageType), nullable=False)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
