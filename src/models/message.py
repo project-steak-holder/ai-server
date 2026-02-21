@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 import uuid
+
+from sqlalchemy.orm import Mapped, mapped_column
 from .base import Base
 
 from sqlalchemy import (
@@ -29,7 +31,7 @@ class Message(Base):
         nullable=False,
     )
     content = Column(Text, nullable=False)
-    type = Column(SQLEnum(MessageType), nullable=False)
+    type: Mapped[MessageType] = mapped_column(SQLEnum(MessageType), nullable=False)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
