@@ -3,12 +3,14 @@ Unit tests for PydanticAI Stakeholder Agent.
 """
 
 import pytest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
 
 from src.agents.stakeholder_agent import (
     AgentDependencies,
     AgentResponse,
+    create_stakeholder_agent,
     run_stakeholder_query,
     get_stakeholder_agent,
 )
@@ -57,7 +59,9 @@ def sample_history():
     """Create sample conversation history."""
     return [
         ModelRequest(parts=[UserPromptPart(content="What bikes do you have?")]),
-        ModelResponse(parts=[TextPart(content="We have mountain bikes and road bikes.")])
+        ModelResponse(
+            parts=[TextPart(content="We have mountain bikes and road bikes.")]
+        ),
     ]
 
 
@@ -133,9 +137,7 @@ async def test_run_stakeholder_query_success(
 
 
 @pytest.mark.anyio
-async def test_run_stakeholder_query_with_empty_history(
-    sample_persona, sample_project
-):
+async def test_run_stakeholder_query_with_empty_history(sample_persona, sample_project):
     """Test stakeholder query with no conversation history."""
 
     mock_result = MagicMock()
@@ -189,3 +191,71 @@ async def test_run_stakeholder_query_preserves_persona_characteristics(
         assert deps.persona.expertise_level.business == "high"
         assert deps.persona.personality.professionalism == "business casual"
         assert "technical jargon" in deps.persona.communication_rules.avoid
+
+
+def test_create_stakeholder_agent_builds_prompt(
+    monkeypatch, sample_persona, sample_project
+):
+    """Test agent creation wiring and generated system prompt."""
+    captured = {}
+
+    class FakeProvider:
+        def __init__(self, **kwargs):
+            captured["provider_kwargs"] = kwargs
+
+    class FakeModel:
+        def __init__(self, **kwargs):
+            captured["model_kwargs"] = kwargs
+
+    class FakeAgent:
+        @classmethod
+        def __class_getitem__(cls, _item):
+            return cls
+
+        def __init__(self, **kwargs):
+            captured["agent_kwargs"] = kwargs
+
+        def instructions(self, fn):
+            captured["prompt_fn"] = fn
+            return fn
+
+    monkeypatch.setenv("AI_PROVIDER_BASE_URL", "http://ai.local")
+    monkeypatch.setenv("AI_PROVIDER_API_KEY", "key")
+    monkeypatch.setenv("AI_PROVIDER_MODEL", "model-x")
+    monkeypatch.setattr("src.agents.stakeholder_agent.OpenAIProvider", FakeProvider)
+    monkeypatch.setattr("src.agents.stakeholder_agent.OpenAIChatModel", FakeModel)
+    monkeypatch.setattr("src.agents.stakeholder_agent.Agent", FakeAgent)
+
+    agent = create_stakeholder_agent()
+    assert isinstance(agent, FakeAgent)
+
+    ctx = SimpleNamespace(
+        deps=AgentDependencies(
+            persona=sample_persona, project=sample_project, history=[]
+        )
+    )
+    prompt = captured["prompt_fn"](ctx)
+
+    assert f"You are {sample_persona.name}" in prompt
+    assert sample_project.project_name in prompt
+    assert captured["provider_kwargs"]["base_url"] == "http://ai.local"
+    assert captured["model_kwargs"]["model_name"] == "model-x"
+
+
+@pytest.mark.anyio
+async def test_run_stakeholder_query_wraps_unexpected_exception(
+    sample_persona, sample_project
+):
+    """Test non-LLM exceptions are wrapped as LlmResponseException."""
+    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(side_effect=RuntimeError("llm down"))
+        mock_get_agent.return_value = mock_agent
+
+        with pytest.raises(Exception, match="Error running stakeholder agent"):
+            await run_stakeholder_query(
+                message="hello",
+                persona=sample_persona,
+                project=sample_project,
+                history=[],
+            )

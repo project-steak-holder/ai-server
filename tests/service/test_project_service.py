@@ -6,7 +6,11 @@ unit tests for project_service
 
 import json
 import uuid
+from unittest.mock import patch
 
+import pytest
+
+from src.exceptions.context_load_exception import ContextLoadException
 from src.service.project_service import ProjectService
 from src.schemas.project_model import Project
 
@@ -77,3 +81,30 @@ def test_get_project():
     project = service.load_project()
     assert service.get_project() == project
     assert service.get_project().project_name == "Golden Bikes Rental System"
+
+
+def test_project_service_error_paths(monkeypatch, tmp_path):
+    """test project service exception branches"""
+    ProjectService.project = None
+    monkeypatch.setenv("PROJECT_FILE", str(tmp_path / "missing.json"))
+    with pytest.raises(ContextLoadException, match="Project file not found"):
+        ProjectService().load_project()
+
+    bad_json = tmp_path / "bad_project.json"
+    bad_json.write_text("{", encoding="utf-8")
+    monkeypatch.setenv("PROJECT_FILE", str(bad_json))
+    with pytest.raises(
+        ContextLoadException, match="Failed to decode project JSON file"
+    ):
+        ProjectService().load_project()
+
+    monkeypatch.setenv("PROJECT_FILE", "ignored.json")
+    with patch("builtins.open", side_effect=PermissionError("denied")):
+        with pytest.raises(
+            ContextLoadException, match="Unexpected error loading project context"
+        ):
+            ProjectService().load_project()
+
+    ProjectService.project = None
+    with pytest.raises(ContextLoadException, match="Project not loaded"):
+        ProjectService.get_project()
