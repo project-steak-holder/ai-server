@@ -86,6 +86,12 @@ def test_set_request(agent_service):
     assert agent_service.request == request
 
 
+def test_set_conversation_id(agent_service):
+    """test capturing conversation id"""
+    agent_service.set_conversation_id("conv-123")
+    assert agent_service.conversation_id == "conv-123"
+
+
 @pytest.mark.anyio
 async def test_process_agent_query_with_pydantic_ai(agent_service):
     """Test process_agent_query using PydanticAI."""

@@ -5,7 +5,11 @@ unit tests for persona_service
 """
 
 import json
+from unittest.mock import patch
 
+import pytest
+
+from src.exceptions.context_load_exception import ContextLoadException
 from src.service.persona_service import PersonaService
 from src.schemas.persona_model import Persona
 
@@ -76,3 +80,30 @@ def test_get_persona():
     persona = service.load_persona()
     assert service.get_persona() == persona
     assert service.get_persona().role == "Owner, Golden Bikes"
+
+
+def test_persona_service_error_paths(monkeypatch, tmp_path):
+    """test persona service exception branches"""
+    PersonaService.persona = None
+    monkeypatch.setenv("PERSONA_FILE", str(tmp_path / "missing.json"))
+    with pytest.raises(ContextLoadException, match="Persona file not found"):
+        PersonaService().load_persona()
+
+    bad_json = tmp_path / "bad_persona.json"
+    bad_json.write_text("{", encoding="utf-8")
+    monkeypatch.setenv("PERSONA_FILE", str(bad_json))
+    with pytest.raises(
+        ContextLoadException, match="Failed to decode persona JSON file"
+    ):
+        PersonaService().load_persona()
+
+    monkeypatch.setenv("PERSONA_FILE", "ignored.json")
+    with patch("builtins.open", side_effect=PermissionError("denied")):
+        with pytest.raises(
+            ContextLoadException, match="Unexpected error loading persona context"
+        ):
+            PersonaService().load_persona()
+
+    PersonaService.persona = None
+    with pytest.raises(ContextLoadException, match="Persona not loaded"):
+        PersonaService.get_persona()
