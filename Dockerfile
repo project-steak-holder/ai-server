@@ -1,5 +1,6 @@
 # 1: Build Stage
-FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.10.6-python3.14-trixie-slim@sha256:afdc829233119f8bb7ffc68839aaac57b3a4eda72947b2317ad218138fbd955a AS builder
+
 
 WORKDIR /app
 
@@ -20,14 +21,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 
 # 2: Run Stage
-FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS runner
+FROM ghcr.io/astral-sh/uv:0.10.6-python3.14-trixie-slim@sha256:afdc829233119f8bb7ffc68839aaac57b3a4eda72947b2317ad218138fbd955a AS runner
 
 WORKDIR /app
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy application code
+# Copy application code (cached layers)
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/data /app/data
 COPY --from=builder /app/alembic /app/alembic
@@ -39,9 +40,13 @@ ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
-# Create a non-root user
+# Create non-root user
 RUN addgroup --system appgroup
 RUN adduser --system --ingroup appgroup appuser
+
+# Fix file ownership for runtime paths
+RUN chown -R appuser:appgroup /app
+
 USER appuser
 
 EXPOSE 8000
