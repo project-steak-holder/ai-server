@@ -43,7 +43,7 @@ jobs:
       - name: Deploy to Cloud Run (staging)
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ vars.STAGING_CLOUD_RUN_SERVICE }}
+          service: ai-server-staging
           region: ${{ vars.GCP_REGION }}
           image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO }}/ai-server:staging-${{ github.sha }}
           flags: '--port=8000'
