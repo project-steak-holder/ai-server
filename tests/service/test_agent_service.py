@@ -323,6 +323,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             "src.service.agent_service.run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
+        patch.object(agent_service, "model_service", MagicMock()) as mock_model_service,
     ):
         # Mock save_ai_message
         mock_message = MagicMock()
@@ -336,9 +337,10 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         ):
             pass
 
-        # Verify context loading methods were called (same as non-streaming)
-        assert agent_service.persona_service.load_persona.called
-        assert agent_service.project_service.load_project.called
+        # Verify model_service.load_model was called for persona and project
+        calls = [call[0][0] for call in mock_model_service.load_model.call_args_list]
+        assert "persona" in calls
+        assert "project" in calls
 
         # Verify compaction was called
         mock_compact.assert_called_once()

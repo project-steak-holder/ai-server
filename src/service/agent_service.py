@@ -16,8 +16,7 @@ from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import wide_event
 from src.schemas.message_model import Message
 from src.service.history_compactor_service import HistoryCompactorService
-from src.service.persona_service import PersonaService
-from src.service.project_service import ProjectService
+from src.service.model_service import ModelService
 from src.service.message_service import MessageService
 
 
@@ -26,27 +25,22 @@ class AgentService:
 
     def __init__(
         self,
-        persona_service: PersonaService,
-        project_service: ProjectService,
+        model_service: ModelService,
         message_service: MessageService,
     ):
-
         # dependencies injected via FastAPI
-        self.persona_service = persona_service
-        self.project_service = project_service
+        self.model_service = model_service
         self.message_service = message_service
         self.request: str | None = None
         self.conversation_id: str | None = None
 
     def load_persona(self):
-        """loads from persona service"""
-        self.persona_service.load_persona()
-        return self.persona_service.get_persona()
+        """loads persona model from model service"""
+        return self.model_service.load_model("persona")
 
     def load_project(self):
-        """loads from project service"""
-        self.project_service.load_project()
-        return self.project_service.get_project()
+        """loads project model from model service"""
+        return self.model_service.load_model("project")
 
     async def load_history(self, user_id: str, conversation_id: str):
         """loads from message service"""

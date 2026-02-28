@@ -5,11 +5,11 @@ Test fixtures for pytest.
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 import uuid
+from datetime import datetime, timezone
 
 from src.service.agent_service import AgentService
-from src.service.persona_service import PersonaService
-from src.service.project_service import ProjectService
 from src.service.message_service import MessageService
+from src.service.model_service import ModelService
 from src.repository.message_repository import MessageRepository
 from src.schemas.persona_model import (
     CommunicationRules,
@@ -21,44 +21,6 @@ from src.schemas.persona_model import (
 from src.schemas.project_model import Project
 from src.models.message import Message as MessageModel
 from src.schemas.message_model import MessageType
-from datetime import datetime, timezone
-
-
-@pytest.fixture
-def mock_persona_service():
-    """Create a mock PersonaService."""
-    mock = MagicMock(spec=PersonaService)
-    persona = Persona(
-        name="Owen",
-        role="Owner, Golden Bikes",
-        location="Test Location",
-        background=["bg"],
-        goals=["goal"],
-        expertise_level=ExpertiseLevel(business="high", technology="low"),
-        personality=Personality(
-            tone=["friendly"],
-            professionalism="casual",
-            focus=PersonalityFocus(can_tangent=False, refocus_easily=True),
-        ),
-        communication_rules=CommunicationRules(avoid=["jargon"]),
-    )
-    mock.load_persona.return_value = persona
-    mock.get_persona.return_value = persona
-    return mock
-
-
-@pytest.fixture
-def mock_project_service():
-    """Create a mock ProjectService."""
-    mock = MagicMock(spec=ProjectService)
-    project = Project(
-        project_name="Golden Bikes Rental System",
-        business_summary="summary",
-        requirements=[],
-    )
-    mock.load_project.return_value = project
-    mock.get_project.return_value = project
-    return mock
 
 
 @pytest.fixture
@@ -112,8 +74,11 @@ def mock_message_repository():
 
     # Mock async methods
     mock.save_message = AsyncMock(
-        side_effect=lambda conversation_id, user_id, content, type: create_mock_message(
-            conversation_id, user_id, content, type
+        side_effect=lambda *args, **kwargs: create_mock_message(
+            kwargs.get("conversation_id", args[0] if len(args) > 0 else None),
+            kwargs.get("user_id", args[1] if len(args) > 1 else None),
+            kwargs.get("content", args[2] if len(args) > 2 else None),
+            kwargs.get("type", args[3] if len(args) > 3 else None),
         )
     )
     mock.get_messages_by_conversation_id = AsyncMock(return_value=[])
@@ -128,10 +93,42 @@ def message_service(mock_message_repository):
 
 
 @pytest.fixture
-def agent_service(mock_persona_service, mock_project_service, mock_message_service):
+def agent_service(mock_message_service):
     """Create an AgentService with mocked dependencies."""
+    mock_model_service = MagicMock(spec=ModelService)
+    # Provide real Persona and Project for load_model
+    from src.schemas.persona_model import (
+        Persona,
+        ExpertiseLevel,
+        Personality,
+        PersonalityFocus,
+        CommunicationRules,
+    )
+    from src.schemas.project_model import Project
+
+    persona = Persona(
+        name="Owen",
+        role="Owner, Golden Bikes",
+        location="Test Location",
+        background=["bg"],
+        goals=["goal"],
+        expertise_level=ExpertiseLevel(business="high", technology="low"),
+        personality=Personality(
+            tone=["friendly"],
+            professionalism="casual",
+            focus=PersonalityFocus(can_tangent=False, refocus_easily=True),
+        ),
+        communication_rules=CommunicationRules(avoid=["jargon"]),
+    )
+    project = Project(
+        project_name="Golden Bikes Rental System",
+        business_summary="summary",
+        requirements=[],
+    )
+    mock_model_service.load_model.side_effect = lambda name: (
+        persona if name == "persona" else project if name == "project" else None
+    )
     return AgentService(
-        persona_service=mock_persona_service,
-        project_service=mock_project_service,
+        model_service=mock_model_service,
         message_service=mock_message_service,
     )

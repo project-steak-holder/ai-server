@@ -4,8 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from src.dependencies.services import (
     get_agent_service,
-    get_persona_service,
-    get_project_service,
+    get_model_service,
     get_sentiment_data_service,
 )
 from src.dependencies.database import get_sentiment_service
@@ -13,22 +12,18 @@ from src.service.sentiment_data_service import SentimentDataService
 
 
 def test_dependencies_service_factories():
-    persona_service = get_persona_service()
-    project_service = get_project_service()
 
-    assert persona_service.__class__.__name__ == "PersonaService"
-    assert project_service.__class__.__name__ == "ProjectService"
+    model_service = get_model_service()
+    assert model_service.__class__.__name__ == "ModelService"
 
-    message_service = MagicMock()
     with (
-        patch("src.dependencies.services.get_persona_service", return_value="persona"),
-        patch("src.dependencies.services.get_project_service", return_value="project"),
+        patch("src.dependencies.services.get_model_service", return_value="model"),
+        patch("src.dependencies.services.get_message_service", return_value="message"),
     ):
-        agent_service = get_agent_service(message_service)
+        agent_service = get_agent_service("model", "message")
 
-    assert agent_service.message_service is message_service
-    assert agent_service.persona_service == "persona"
-    assert agent_service.project_service == "project"
+    assert agent_service.message_service == "message"
+    assert agent_service.model_service == "model"
 
     # Test get_sentiment_service returns SentimentDataService instance with a mock repo
     mock_repo = MagicMock()
