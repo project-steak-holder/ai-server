@@ -71,6 +71,8 @@ All configuration is managed through a `.env` file in the project root. An examp
 | `AI_PROVIDER_BASE_URL` | Custom base URL for AI provider (uses provider default if not set)                                     | Yes      |
 | `AI_PROVIDER_MODEL`    | Model name or identifier to use with the AI provider (e.g. `gpt-4o-mini`, `claude-2`)                  | Yes      |
 | `AUTH_URL`             | Neon Auth base URL (used by Neon Auth SDK / Data API)                                                  | No       |
+| `PERSONA_FILE`         | Optional path to persona JSON context file (defaults to `data/persona.json`)                           | No       |
+| `PROJECT_FILE`         | Optional path to project JSON context file (defaults to `data/project.json`)                           | No       |
 
 ### Getting Your Configuration
 
@@ -339,6 +341,8 @@ Content-Type: application/json
 ### POST /api/v1/generate
 
 Accept a user message in a conversation and return AI stakeholder response.
+Requires `Authorization: Bearer <token>`.
+Current implementation note: request body uses `conversation_id` and `content`; response includes `conversation_id`, `content`, and `type`.
 
 **Request:**
 
@@ -387,6 +391,7 @@ Cross-cutting (auth, rate limiting, logging)
 
 ## Documentation
 
+- [Full Project Documentation](https://project-steak-holder.github.io/project-docs/)
 - [Neon Database Documentation](https://neon.com/docs/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Pydantic AI](https://ai.pydantic.dev/)
