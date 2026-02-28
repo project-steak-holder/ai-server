@@ -2,14 +2,6 @@
 
 Backend REST API for an AI-powered Requirements Elicitation Practice System. Students interact with a simulated AI stakeholder to practice requirements elicitation skills (asking questions, clarifying ambiguity, iterating toward higher-quality requirements).
 
-## Tech Stack
-
-- **Python 3.13** - Runtime
-- **FastAPI 0.128.4+** - REST API framework
-- **Pydantic AI Slim** - AI integration with OpenAI backend
-- **Neon PostgreSQL** - Serverless Postgres database
-- **SQLAlchemy** - ORM for database queries
-
 ## Project Purpose
 
 This backend serves as the core infrastructure for an elicitation practice system where:
@@ -18,6 +10,56 @@ This backend serves as the core infrastructure for an elicitation practice syste
 - The system maintains conversation history and context
 - An AI provider generates stakeholder responses
 - All interactions are logged and persisted
+
+## Core Architecture
+
+### Layered Design
+
+```
+API Layer (routers)
+    ↓
+Service Layer (business logic)
+    ↓
+AI Integration Layer (provider adapter)
+    ↓
+Data Access Layer (repositories, ORM)
+    ↓
+Cross-cutting (auth, rate limiting, logging)
+```
+
+### Key Patterns
+
+- **AI Provider Abstraction** - Swappable AI provider implementations
+- **Repository Pattern** - Isolated data access layer for testability
+- **Dependency Injection** - FastAPI's `Depends` for loose coupling
+
+## Project Structure
+
+```
+ai-server/
+├── alembic/                     # Database migrations
+├── src/
+│   ├── __init__.py
+│   ├── main.py                  # FastAPI app entry point
+│   ├── config/                  # Environment variables & settings
+│   ├── controllers/             # API endpoints (routers)
+│   ├── services/                # Business logic & orchestration
+│   ├── schemas/                 # Pydantic request/response models
+│   ├── repositories/            # Data access layer
+│   ├── models/                  # Database models (SQLAlchemy)
+│   ├── ai/                      # AI provider abstraction
+│   ├── middlewares/             # Error handling, logging, rate limits
+│   ├── dependencies/            # FastAPI dependency injection
+│   ├── exceptions/              # Custom exception classes
+│   └── utils/                   # Validation & helper functions
+├── tests/                       # Unit & integration tests
+├── scripts/                     # Database seeding & utility scripts
+├── ruff.yaml                    # Linter configuration
+├── .env.example                 # Example environment configuration
+├── .env.local                   # Local development environment
+├── .env                         # Environment configuration (gitignored)
+└── pyproject.toml               # Dependencies
+```
 
 ## Quick Start
 
@@ -94,56 +136,35 @@ All configuration is managed through a `.env` file in the project root. An examp
 - Specify the model identifier to use with `AI_PROVIDER_MODEL` (e.g. `gpt-4o-mini`, `claude-2`).
 - If using Neon Auth/Data API workflows, set `AUTH_URL` to your Neon Auth base URL so the SDK can retrieve JWTs for Data API calls.
 
-## Project Structure
+## API Endpoints
 
-```
-ai-server/
-├── alembic/                     # Database migrations
-├── src/
-│   ├── __init__.py
-│   ├── main.py                  # FastAPI app entry point
-│   ├── config/                  # Environment variables & settings
-│   ├── controllers/             # API endpoints (routers)
-│   ├── services/                # Business logic & orchestration
-│   ├── schemas/                 # Pydantic request/response models
-│   ├── repositories/            # Data access layer
-│   ├── models/                  # Database models (SQLAlchemy)
-│   ├── ai/                      # AI provider abstraction
-│   ├── middlewares/             # Error handling, logging, rate limits
-│   ├── dependencies/            # FastAPI dependency injection
-│   ├── exceptions/              # Custom exception classes
-│   └── utils/                   # Validation & helper functions
-├── tests/                       # Unit & integration tests
-├── scripts/                     # Database seeding & utility scripts
-├── ruff.yaml                    # Linter configuration
-├── .env.example                 # Example environment configuration
-├── .env.local                   # Local development environment
-├── .env                         # Environment configuration (gitignored)
-└── pyproject.toml               # Dependencies
+### POST /api/v1/generate
+
+Accept a user message in a conversation and return AI stakeholder response.
+Requires `Authorization: Bearer <token>`.
+Current implementation note: request body uses `conversation_id` and `content`; response includes `conversation_id`, `content`, and `type`.
+
+**Request:**
+
+```json
+{
+  "conversation_id": "string",
+  "user_id": "string",
+  "content": "string"
+}
 ```
 
-## Development
+**Response:**
 
-### Running Tests
-
-```bash
-pytest tests/ -v                    # Run tests
-pytest tests/ -v --cov=src         # Run tests with coverage report (requires pytest-cov)
-```
-
-### Adding Dependencies
-
-```bash
-uv add package-name              # Add to dependencies
-uv add package-name --dev        # Add to dev dependencies
-```
-
-### Database Migrations
-
-When schema changes are needed:
-
-```bash
-alembic upgrade head
+```json
+{
+  "conversation_id": "string",
+  "user_id": "string",
+  "content": "string",
+  "type": "MessageType",
+  "created_at": "timestamp",
+  "updated_at": "timestamp"
+}
 ```
 
 ## Logging with Wide Events
@@ -302,7 +323,6 @@ def some_function():
     await conversation = conversationrepo.find(conversation_id)
     if conversation is None:
         raise ConversationNotFoundError(conversation_id)
-
 ```
 
 ### Automatic Error Response
@@ -336,58 +356,37 @@ X-Correlation-ID: 7f3d2a8b-4c1e-9f6d-3a2b-1c4e5f6d7a8b
 Content-Type: application/json
 ```
 
-## API Endpoints
+## Development
 
-### POST /api/v1/generate
+### Running Tests
 
-Accept a user message in a conversation and return AI stakeholder response.
-Requires `Authorization: Bearer <token>`.
-Current implementation note: request body uses `conversation_id` and `content`; response includes `conversation_id`, `content`, and `type`.
-
-**Request:**
-
-```json
-{
-  "conversation_id": "string",
-  "user_id": "string",
-  "content": "string"
-}
+```bash
+pytest tests/ -v                    # Run tests
+pytest tests/ -v --cov=src         # Run tests with coverage report (requires pytest-cov)
 ```
 
-**Response:**
+### Adding Dependencies
 
-```json
-{
-  "conversation_id": "string",
-  "user_id": "string",
-  "content": "string",
-  "type": "MessageType",
-  "created_at": "timestamp",
-  "updated_at": "timestamp"
-}
+```bash
+uv add package-name              # Add to dependencies
+uv add package-name --dev        # Add to dev dependencies
 ```
 
-## Core Architecture
+### Database Migrations
 
-### Layered Design
+When schema changes are needed:
 
-```
-API Layer (routers)
-    ↓
-Service Layer (business logic)
-    ↓
-AI Integration Layer (provider adapter)
-    ↓
-Data Access Layer (repositories, ORM)
-    ↓
-Cross-cutting (auth, rate limiting, logging)
+```bash
+alembic upgrade head
 ```
 
-### Key Patterns
+## Tech Stack
 
-- **AI Provider Abstraction** - Swappable AI provider implementations
-- **Repository Pattern** - Isolated data access layer for testability
-- **Dependency Injection** - FastAPI's `Depends` for loose coupling
+- **Python 3.13** - Runtime
+- **FastAPI 0.128.4+** - REST API framework
+- **Pydantic AI Slim** - AI integration with OpenAI backend
+- **Neon PostgreSQL** - Serverless Postgres database
+- **SQLAlchemy** - ORM for database queries
 
 ## Documentation
 
