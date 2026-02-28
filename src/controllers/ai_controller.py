@@ -8,7 +8,7 @@ AIController is responsible for:
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
-from src.dependencies import WideEvent, CurrentUser, AgentService
+from src.dependencies import WideEvent, CurrentUser, AgentService, RateLimit
 from src.schemas.ai import GenerateRequest, GenerateResponse, MessageType
 
 
@@ -21,6 +21,7 @@ async def generate(
     current_user: CurrentUser,
     wide_event: WideEvent,
     agent_service: AgentService,
+    _: RateLimit,
 ) -> GenerateResponse:
     start_time = datetime.now(timezone.utc)
     wide_event.add_context(

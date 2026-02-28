@@ -5,14 +5,17 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
+  deploy-revision:
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-production
       cancel-in-progress: true
     permissions:
       contents: read
-      id-token: write   # required for Workload Identity Federation
+      id-token: write
+    outputs:
+      revision: ${{ steps.get-revision.outputs.name }}
+      canary_url: ${{ steps.canary-url.outputs.url }}
 
     steps:
       - uses: actions/checkout@v4
@@ -37,18 +40,17 @@ jobs:
           tags: |
             ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO }}/ai-server:${{ github.sha }}
             ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO }}/ai-server:latest
-          build-args: |
-            VITE_NEON_AUTH_URL=${{ vars.VITE_NEON_AUTH_URL }}
           cache-from: type=registry,ref=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO }}/ai-server:latest
           cache-to: type=inline
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (no traffic)
+        id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ vars.CLOUD_RUN_SERVICE }}
           region: ${{ vars.GCP_REGION }}
           image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO }}/ai-server:${{ github.sha }}
-          flags: '--port=8000'
+          flags: '--port=8000 --no-traffic --tag=canary'
           secrets: |
             DATABASE_URL=PSYCOPG_DATABASE_URL:latest
             AI_PROVIDER_API_KEY=AI_PROVIDER_API_KEY:latest
@@ -56,3 +58,57 @@ jobs:
             AI_PROVIDER_MODEL=AI_PROVIDER_MODEL:latest
             AUTH_URL=AUTH_URL:latest
 
+      - name: Get new revision name
+        id: get-revision
+        run: |
+          REVISION=$(gcloud run services describe ${{ vars.CLOUD_RUN_SERVICE }} \
+            --region=${{ vars.GCP_REGION }} \
+            --format='value(status.latestCreatedRevisionName)')
+          echo "name=$REVISION" >> "$GITHUB_OUTPUT"
+
+      - name: Get canary revision URL
+        id: canary-url
+        run: |
+          URL=$(gcloud run services describe ${{ vars.CLOUD_RUN_SERVICE }} \
+            --region=${{ vars.GCP_REGION }} \
+            --format=json \
+            | jq -r '.status.traffic[] | select(.tag=="canary") | .url')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test canary revision
+        run: |
+          BASE_URL=$(gcloud run services describe ${{ vars.CLOUD_RUN_SERVICE }} \
+            --region=${{ vars.GCP_REGION }} \
+            --format='value(status.url)')
+          TOKEN=$(gcloud auth print-identity-token \
+            --impersonate-service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
+            --audiences="${BASE_URL}")
+          curl -fsS -H "Authorization: Bearer $TOKEN" \
+            "${{ steps.canary-url.outputs.url }}/health"
+
+  flip-traffic:
+    needs: deploy-revision
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Flip traffic to new revision
+        run: |
+          gcloud run services update-traffic ${{ vars.CLOUD_RUN_SERVICE }} \
+            --region=${{ vars.GCP_REGION }} \
+            --to-revisions=${{ needs.deploy-revision.outputs.revision }}=100
+
+      - name: Remove canary tag
+        run: |
+          gcloud run services update-traffic ${{ vars.CLOUD_RUN_SERVICE }} \
+            --region=${{ vars.GCP_REGION }} \
+            --remove-tags=canary
