@@ -4,9 +4,14 @@ This service will orchestrate conversation flow,
 persistence, persona, project context, and LLM interaction for a project stakeholder agent.
 """
 
+import json
+from typing import AsyncGenerator
 from pydantic_ai import ModelMessage
 
-from src.agents.stakeholder_agent import run_stakeholder_query
+from src.agents.stakeholder_agent import (
+    run_stakeholder_query,
+    run_stakeholder_query_stream,
+)
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.message_model import Message
 from src.service.history_compactor_service import HistoryCompactorService
@@ -106,3 +111,44 @@ class AgentService:
             "status": "success",
             "response": saved_ai_message.content,
         }
+
+    async def process_agent_query_stream(
+        self, user_id: str, conversation_id: str, content: str
+    ) -> AsyncGenerator[str, None]:
+        """Stream agent response maintaining architectural consistency."""
+
+        # Save user message
+        await self.message_service.save_user_message(
+            user_id=user_id, conversation_id=conversation_id, content=content
+        )
+
+        # Load context (same as v1)
+        persona = self.load_persona()
+        project = self.load_project()
+        history = await self.load_history(
+            user_id=user_id, conversation_id=conversation_id
+        )
+        compacted_history = await HistoryCompactorService.summarize_old_messages(
+            history=history
+        )
+
+        # Stream through agent layer
+        full_response = ""
+        try:
+            async for chunk in run_stakeholder_query_stream(
+                message=content,
+                persona=persona,
+                project=project,
+                history=compacted_history,
+            ):
+                full_response += chunk
+                yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
+
+            # Save complete response
+            await self.message_service.save_ai_message(
+                user_id=user_id, conversation_id=conversation_id, content=full_response
+            )
+            yield f"data: {json.dumps({'complete': True})}\n\n"
+
+        except LlmResponseException as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"

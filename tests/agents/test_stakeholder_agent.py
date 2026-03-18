@@ -12,6 +12,7 @@ from src.agents.stakeholder_agent import (
     AgentResponse,
     create_stakeholder_agent,
     run_stakeholder_query,
+    run_stakeholder_query_stream,
     get_stakeholder_agent,
 )
 from src.schemas.persona_model import Persona
@@ -125,8 +126,8 @@ async def test_run_stakeholder_query_success(
         mock_agent.run.assert_called_once()
         call_args = mock_agent.run.call_args
 
-        # Check the message argument
-        assert call_args[0][0] == "What should we prioritize?"
+        # Check the user_prompt argument
+        assert call_args[1]["user_prompt"] == "What should we prioritize?"
 
         # Check the deps argument
         deps = call_args[1]["deps"]
@@ -259,3 +260,154 @@ async def test_run_stakeholder_query_wraps_unexpected_exception(
                 project=sample_project,
                 history=[],
             )
+
+
+@pytest.mark.anyio
+async def test_run_stakeholder_query_stream_success(
+    sample_persona, sample_project, sample_history
+):
+    """Test successful stakeholder query streaming execution."""
+
+    # Mock the agent's run_stream method and StreamedRunResult
+    mock_streamed_result = MagicMock()
+
+    # Mock the stream_text method to yield chunks
+    async def mock_stream_text(delta=True, debounce_by=0.1):
+        chunks = ["I think ", "we should ", "focus on ", "quality bikes."]
+        for chunk in chunks:
+            yield chunk
+
+    mock_streamed_result.stream_text = mock_stream_text
+
+    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
+        mock_agent = MagicMock()
+        mock_agent.run_stream = AsyncMock(return_value=mock_streamed_result)
+        mock_get_agent.return_value = mock_agent
+
+        # Run the streaming query
+        chunks = []
+        async for chunk in run_stakeholder_query_stream(
+            message="What should we prioritize?",
+            persona=sample_persona,
+            project=sample_project,
+            history=sample_history,
+        ):
+            chunks.append(chunk)
+
+        # Verify the chunks
+        expected_chunks = ["I think ", "we should ", "focus on ", "quality bikes."]
+        assert chunks == expected_chunks
+
+        # Verify agent.run_stream was called with correct args
+        mock_agent.run_stream.assert_called_once()
+        call_args = mock_agent.run_stream.call_args
+
+        # Check the user_prompt argument
+        assert call_args[1]["user_prompt"] == "What should we prioritize?"
+
+        # Check the deps argument
+        deps = call_args[1]["deps"]
+        assert isinstance(deps, AgentDependencies)
+        assert deps.persona == sample_persona
+        assert deps.project == sample_project
+        assert deps.history == sample_history
+
+
+@pytest.mark.anyio
+async def test_run_stakeholder_query_stream_with_empty_history(
+    sample_persona, sample_project
+):
+    """Test stakeholder query streaming with no conversation history."""
+
+    mock_streamed_result = MagicMock()
+
+    async def mock_stream_text(delta=True, debounce_by=0.1):
+        chunks = ["Hello! ", "How can ", "I help?"]
+        for chunk in chunks:
+            yield chunk
+
+    mock_streamed_result.stream_text = mock_stream_text
+
+    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
+        mock_agent = MagicMock()
+        mock_agent.run_stream = AsyncMock(return_value=mock_streamed_result)
+        mock_get_agent.return_value = mock_agent
+
+        # Run with empty history
+        chunks = []
+        async for chunk in run_stakeholder_query_stream(
+            message="Hi there!",
+            persona=sample_persona,
+            project=sample_project,
+            history=[],
+        ):
+            chunks.append(chunk)
+
+        expected_chunks = ["Hello! ", "How can ", "I help?"]
+        assert chunks == expected_chunks
+
+        # Verify deps had empty history
+        deps = mock_agent.run_stream.call_args[1]["deps"]
+        assert deps.history == []
+
+
+@pytest.mark.anyio
+async def test_run_stakeholder_query_stream_wraps_unexpected_exception(
+    sample_persona, sample_project
+):
+    """Test streaming function wraps unexpected exceptions as LlmResponseException."""
+
+    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
+        mock_agent = MagicMock()
+        mock_agent.run_stream = AsyncMock(
+            side_effect=RuntimeError("llm streaming down")
+        )
+        mock_get_agent.return_value = mock_agent
+
+        with pytest.raises(
+            Exception, match="Error streaming stakeholder agent response"
+        ):
+            async for _ in run_stakeholder_query_stream(
+                message="hello",
+                persona=sample_persona,
+                project=sample_project,
+                history=[],
+            ):
+                pass
+
+
+@pytest.mark.anyio
+async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
+    sample_persona, sample_project
+):
+    """Test that streaming query uses correct debouncing parameters."""
+
+    mock_streamed_result = MagicMock()
+
+    # Track the parameters passed to stream_text
+    stream_text_calls = []
+
+    async def mock_stream_text(delta=True, debounce_by=0.1):
+        stream_text_calls.append({"delta": delta, "debounce_by": debounce_by})
+        yield "test chunk"
+
+    mock_streamed_result.stream_text = mock_stream_text
+
+    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
+        mock_agent = MagicMock()
+        mock_agent.run_stream = AsyncMock(return_value=mock_streamed_result)
+        mock_get_agent.return_value = mock_agent
+
+        # Run the streaming query
+        async for _ in run_stakeholder_query_stream(
+            message="test",
+            persona=sample_persona,
+            project=sample_project,
+            history=[],
+        ):
+            pass
+
+        # Verify stream_text was called with correct parameters
+        assert len(stream_text_calls) == 1
+        assert stream_text_calls[0]["delta"] is True
+        assert stream_text_calls[0]["debounce_by"] == 0.1

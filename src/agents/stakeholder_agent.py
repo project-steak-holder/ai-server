@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
-from typing import cast
+from typing import cast, AsyncGenerator
 
 
 from src.exceptions.llm_response_exception import LlmResponseException
@@ -109,9 +109,38 @@ async def run_stakeholder_query(
         history=history,
     )
     try:
-        result = await agent.run(message, deps=deps, message_history=history)
+        result = await agent.run(
+            user_prompt=message, deps=deps, message_history=history
+        )
         return result.output.content
     except Exception as e:
         raise LlmResponseException(
             message="Error running stakeholder agent", details={"error": str(e)}
+        )
+
+
+async def run_stakeholder_query_stream(
+    message: str,
+    persona: Persona,
+    project: Project,
+    history: list[ModelMessage],
+) -> AsyncGenerator[str, None]:
+    """Yield text chunks directly - maintain layer consistency."""
+    agent = get_stakeholder_agent()
+
+    deps = AgentDependencies(persona=persona, project=project, history=history)
+
+    try:
+        streamed_result = await agent.run_stream(
+            user_prompt=message, deps=deps, message_history=history
+        )
+
+        # Yield chunks directly
+        async for chunk in streamed_result.stream_text(delta=True, debounce_by=0.1):
+            yield chunk
+
+    except Exception as e:
+        raise LlmResponseException(
+            message="Error streaming stakeholder agent response",
+            details={"error": str(e)},
         )
