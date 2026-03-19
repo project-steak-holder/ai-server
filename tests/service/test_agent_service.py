@@ -352,9 +352,6 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         assert agent_service.persona_service.load_persona.called
         assert agent_service.project_service.load_project.called
 
-        # Verify history loading with correct parameters
-        agent_service.load_history = AsyncMock(return_value=[])
-
         # Verify compaction was called
         mock_compact.assert_called_once()
 
