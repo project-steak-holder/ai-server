@@ -131,13 +131,11 @@ async def run_stakeholder_query_stream(
     deps = AgentDependencies(persona=persona, project=project, history=history)
 
     try:
-        streamed_result = await agent.run_stream(
-            user_prompt=message, deps=deps, message_history=history
-        )
-
-        # Yield chunks directly
-        async for chunk in streamed_result.stream_text(delta=True, debounce_by=0.1):
-            yield chunk
+        async with agent.run_stream(
+            user_prompt=message, deps=deps, message_history=history, output_type=str
+        ) as streamed_result:
+            async for chunk in streamed_result.stream_text(delta=True):
+                yield chunk
 
     except Exception as e:
         raise LlmResponseException(

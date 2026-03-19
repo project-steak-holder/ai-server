@@ -129,7 +129,7 @@ class AgentService:
             user_id=user_id, conversation_id=conversation_id
         )
         compacted_history = await HistoryCompactorService.summarize_old_messages(
-            history=history
+            messages=history
         )
 
         # Stream through agent layer

@@ -272,7 +272,7 @@ async def test_run_stakeholder_query_stream_success(
     mock_streamed_result = MagicMock()
 
     # Mock the stream_text method to yield chunks
-    async def mock_stream_text(delta=True, debounce_by=0.1):
+    async def mock_stream_text(delta=True):
         chunks = ["I think ", "we should ", "focus on ", "quality bikes."]
         for chunk in chunks:
             yield chunk
@@ -281,7 +281,10 @@ async def test_run_stakeholder_query_stream_success(
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
         mock_agent = MagicMock()
-        mock_agent.run_stream = AsyncMock(return_value=mock_streamed_result)
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_streamed_result)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_agent.run_stream = MagicMock(return_value=mock_cm)
         mock_get_agent.return_value = mock_agent
 
         # Run the streaming query
@@ -305,6 +308,9 @@ async def test_run_stakeholder_query_stream_success(
         # Check the user_prompt argument
         assert call_args[1]["user_prompt"] == "What should we prioritize?"
 
+        # Check output_type override for text streaming
+        assert call_args[1]["output_type"] is str
+
         # Check the deps argument
         deps = call_args[1]["deps"]
         assert isinstance(deps, AgentDependencies)
@@ -321,7 +327,7 @@ async def test_run_stakeholder_query_stream_with_empty_history(
 
     mock_streamed_result = MagicMock()
 
-    async def mock_stream_text(delta=True, debounce_by=0.1):
+    async def mock_stream_text(delta=True):
         chunks = ["Hello! ", "How can ", "I help?"]
         for chunk in chunks:
             yield chunk
@@ -330,7 +336,10 @@ async def test_run_stakeholder_query_stream_with_empty_history(
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
         mock_agent = MagicMock()
-        mock_agent.run_stream = AsyncMock(return_value=mock_streamed_result)
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_streamed_result)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_agent.run_stream = MagicMock(return_value=mock_cm)
         mock_get_agent.return_value = mock_agent
 
         # Run with empty history
@@ -359,9 +368,10 @@ async def test_run_stakeholder_query_stream_wraps_unexpected_exception(
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
         mock_agent = MagicMock()
-        mock_agent.run_stream = AsyncMock(
-            side_effect=RuntimeError("llm streaming down")
-        )
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(side_effect=RuntimeError("llm streaming down"))
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_agent.run_stream = MagicMock(return_value=mock_cm)
         mock_get_agent.return_value = mock_agent
 
         with pytest.raises(
@@ -380,22 +390,25 @@ async def test_run_stakeholder_query_stream_wraps_unexpected_exception(
 async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
     sample_persona, sample_project
 ):
-    """Test that streaming query uses correct debouncing parameters."""
+    """Test that streaming query uses delta=True for incremental chunks."""
 
     mock_streamed_result = MagicMock()
 
     # Track the parameters passed to stream_text
     stream_text_calls = []
 
-    async def mock_stream_text(delta=True, debounce_by=0.1):
-        stream_text_calls.append({"delta": delta, "debounce_by": debounce_by})
+    async def mock_stream_text(delta=True):
+        stream_text_calls.append({"delta": delta})
         yield "test chunk"
 
     mock_streamed_result.stream_text = mock_stream_text
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
         mock_agent = MagicMock()
-        mock_agent.run_stream = AsyncMock(return_value=mock_streamed_result)
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_streamed_result)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_agent.run_stream = MagicMock(return_value=mock_cm)
         mock_get_agent.return_value = mock_agent
 
         # Run the streaming query
@@ -407,7 +420,6 @@ async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
         ):
             pass
 
-        # Verify stream_text was called with correct parameters
+        # Verify stream_text was called with delta=True
         assert len(stream_text_calls) == 1
         assert stream_text_calls[0]["delta"] is True
-        assert stream_text_calls[0]["debounce_by"] == 0.1
