@@ -151,4 +151,4 @@ class AgentService:
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
         except LlmResponseException as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'error': str(e), 'details': e.details or {}})}\n\n"

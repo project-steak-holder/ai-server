@@ -17,7 +17,7 @@ async def generate_stream(
     wide_event: WideEvent,
     agent_service: AgentService,
     _: RateLimit,
-):
+) -> StreamingResponse:
     """Stream AI response using Server-Sent Events."""
 
     start_time = datetime.now(timezone.utc)
@@ -35,6 +35,6 @@ async def generate_stream(
             conversation_id=payload.conversation_id,
             content=payload.content,
         ),
-        media_type="text/plain",
+        media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
