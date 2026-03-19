@@ -269,11 +269,6 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
     conversation_id = str(uuid.uuid4())
     content = "Test message"
 
-    # Mock streaming that raises an exception
-    async def mock_streaming_error():
-        yield "partial chunk"
-        # This would be caught by LlmResponseException in the actual streaming function
-
     # Patch the compactor and streaming function to raise error
     with (
         patch(
@@ -337,16 +332,12 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run streaming
-        list(
-            [
-                chunk
-                async for chunk in agent_service.process_agent_query_stream(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    content=content,
-                )
-            ]
-        )
+        async for _ in agent_service.process_agent_query_stream(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        ):
+            pass
 
         # Verify context loading methods were called (same as non-streaming)
         assert agent_service.persona_service.load_persona.called
@@ -385,16 +376,12 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run streaming
-        list(
-            [
-                chunk
-                async for chunk in agent_service.process_agent_query_stream(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    content=content,
-                )
-            ]
-        )
+        async for _ in agent_service.process_agent_query_stream(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        ):
+            pass
 
         # Verify save_ai_message was called with complete accumulated response
         agent_service.message_service.save_ai_message.assert_called_once_with(
