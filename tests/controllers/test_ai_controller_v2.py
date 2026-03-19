@@ -41,7 +41,7 @@ async def test_ai_controller_v2_generate_stream_success():
 
     # Verify it returns a StreamingResponse
     assert isinstance(result, StreamingResponse)
-    assert result.media_type == "text/plain"
+    assert result.media_type == "text/event-stream"
 
     # Verify headers
     assert result.headers["Cache-Control"] == "no-cache"
