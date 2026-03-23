@@ -3,6 +3,8 @@ from src.repository.base import BaseCRUDRepository
 from src.models.message import Message
 from src.schemas.message_model import MessageType
 
+__all__ = ["MessageRepository"]
+
 
 class MessageRepository(BaseCRUDRepository[Message]):
     """Repository for managing database operations related to messages."""
