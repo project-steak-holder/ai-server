@@ -213,6 +213,58 @@ async def generate_response(request: Request, payload: GenerateRequest):
 
 **The goal:** Anyone reading the log should understand the full business context, not just technical details.
 
+### The `@wide_event` Decorator
+
+The `@wide_event` decorator automatically captures timing and status for service methods. It records `{name}_duration_ms` and `{name}_status` ("success" or "error") on the current request's wide event via a contextvar.
+
+```python
+from src.middlewares.events import wide_event
+
+class MessageService:
+    @wide_event("save_user_message")
+    async def save_user_message(self, user_id: str, conversation_id: str, content: str):
+        ...
+
+    @wide_event("get_conversation_history")
+    async def get_conversation_history(self, user_id: str, conversation_id: str):
+        ...
+```
+
+This produces flat keys in the wide event:
+
+```json
+{
+  "save_user_message_duration_ms": 482,
+  "save_user_message_status": "success",
+  "get_conversation_history_duration_ms": 43,
+  "get_conversation_history_status": "success"
+}
+```
+
+#### Where to use `@wide_event`
+
+Decorate at the **service layer** — that's the unit of work. Repository methods (one level deeper) would be noise since the service already wraps them. Controller-level timing is the middleware's job.
+
+Good candidates: DB reads/writes, external API calls, LLM calls.
+
+#### `@staticmethod` ordering
+
+> **Warning:** When combining `@wide_event` with `@staticmethod`, `@staticmethod` must be the **outermost** (top) decorator. Otherwise, `@wide_event` wraps the staticmethod descriptor instead of the function, causing a `TypeError` at runtime.
+
+```python
+# Correct
+@staticmethod
+@wide_event("summarize_old_messages")
+async def summarize_old_messages(messages: list[Message]) -> list[ModelMessage]:
+    ...
+
+# Wrong - causes TypeError
+@wide_event("summarize_old_messages")
+@staticmethod
+async def summarize_old_messages(messages: list[Message]) -> list[ModelMessage]:
+    ...
+```
+
 ### Automatic Context
 
 The middleware automatically includes:
@@ -228,16 +280,16 @@ The middleware automatically includes:
 }
 ```
 
-Errors are automatically captured:
+Errors are automatically captured (flat, not nested):
 
 ```json
 {
   "status_code": 500,
   "outcome": "error",
-  "error": {
-    "type": "ValidationError",
-    "message": "Invalid conversation_id format"
-  }
+  "error_code": "INTERNAL_ERROR",
+  "error_category": "server_error",
+  "error_message": "An unexpected error occurred",
+  "exception_type": "TypeError"
 }
 ```
 
@@ -250,17 +302,27 @@ A complete wide event looks like:
   "method": "POST",
   "path": "/api/v1/generate",
   "timestamp": "2026-02-10T10:30:45.123Z",
-  "status_code": 200,
-  "outcome": "success",
-  "duration_ms": 342,
+  "validate_neon_token_duration_ms": 184,
+  "validate_neon_token_status": "success",
   "user_id": "user_12345",
   "conversation_id": "conv_67890",
-  "message_length": 156,
-  "message_count": 8,
-  "conversation_age_hours": 2.5,
-  "ai_model": "gpt-4",
-  "tokens_used": 450,
-  "response_length": 203
+  "user_message_length": 70,
+  "save_user_message_duration_ms": 482,
+  "save_user_message_status": "success",
+  "load_history_duration_ms": 47,
+  "load_history_status": "success",
+  "summarize_old_messages_duration_ms": 0,
+  "summarize_old_messages_status": "success",
+  "stakeholder_query_duration_ms": 2846,
+  "stakeholder_query_status": "success",
+  "save_ai_message_duration_ms": 118,
+  "save_ai_message_status": "success",
+  "process_agent_query_duration_ms": 5583,
+  "process_agent_query_status": "success",
+  "ai_response_length": 103,
+  "status_code": 200,
+  "outcome": "success",
+  "duration_ms": 5749
 }
 ```
 
@@ -269,16 +331,17 @@ A complete wide event looks like:
 **DO:**
 
 - Add context incrementally as you execute
-- Include business context (user tier, account age, etc.)
-- Use high-cardinality fields (IDs, not just categories)
+- Use `@wide_event` on service methods that do I/O (DB, HTTP, LLM)
+- Keep all fields flat — no nested dicts
+- Include identifiers (user_id, conversation_id) and metrics (lengths, counts)
 - Let the middleware handle emission automatically
 
 **DON'T:**
 
 - Scatter multiple log statements throughout handlers
-- Log only technical details without business context
+- Log response content or PII — use lengths instead
+- Decorate both service and repository layers (pick service)
 - Call `print()` or `logger.info()` directly in handlers
-- Miss opportunities to add relevant context
 
 ### References
 
