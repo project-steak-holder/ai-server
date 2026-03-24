@@ -6,6 +6,7 @@ Persona Service
 import os
 import json
 from typing import Optional
+from src.middlewares.events import wide_event
 from src.schemas.persona_model import Persona
 
 from src.exceptions.context_load_exception import ContextLoadException
@@ -25,6 +26,7 @@ class PersonaService:
         """
         self.file_path = os.environ.get("PERSONA_FILE") or "data/persona.json"
 
+    @wide_event("load_persona")
     def load_persona(self) -> Persona:
         """loads persona from file path set in init"""
         try:
@@ -49,6 +51,7 @@ class PersonaService:
             ) from e
 
     @staticmethod
+    @wide_event("get_persona")
     def get_persona() -> Persona:
         """fetch persona from service"""
         if PersonaService.persona is None:
