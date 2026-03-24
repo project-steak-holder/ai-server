@@ -13,6 +13,7 @@ from src.agents.stakeholder_agent import (
     run_stakeholder_query_stream,
 )
 from src.exceptions.llm_response_exception import LlmResponseException
+from src.middlewares.events import wide_event
 from src.schemas.message_model import Message
 from src.service.history_compactor_service import HistoryCompactorService
 from src.service.persona_service import PersonaService
@@ -65,9 +66,10 @@ class AgentService:
         """set from request payload in orchestrator method"""
         self.conversation_id = conversation_id
 
+    @wide_event("process_agent_query")
     async def process_agent_query(
         self, user_id: str, conversation_id: str, content: str
-    ) -> dict:
+    ) -> str:
         """Main Orchestrator Method
         receives request payload from controller as dict
         assembles context from persona, project and persistence(history) service
@@ -87,31 +89,22 @@ class AgentService:
             ModelMessage
         ] = await HistoryCompactorService.summarize_old_messages(history)
 
-        try:
-            response_content = await run_stakeholder_query(
-                message=content,
-                persona=persona,
-                project=project,
-                history=compacted_history,
-            )
-        except LlmResponseException as e:
-            return {
-                "status": "error",
-                "response": "Error processing agent query",
-                "details": str(e),
-            }
+        response_content = await run_stakeholder_query(
+            message=content,
+            persona=persona,
+            project=project,
+            history=compacted_history,
+        )
 
-        saved_ai_message = await self.message_service.save_ai_message(
+        await self.message_service.save_ai_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=response_content,
         )
 
-        return {
-            "status": "success",
-            "response": saved_ai_message.content,
-        }
+        return response_content
 
+    @wide_event("process_agent_query_stream")
     async def process_agent_query_stream(
         self, user_id: str, conversation_id: str, content: str
     ) -> AsyncGenerator[str, None]:

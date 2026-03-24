@@ -18,6 +18,7 @@ from pydantic_ai import (
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from src.middlewares.events import wide_event
 from src.schemas.message_model import Message, MessageType
 
 
@@ -65,6 +66,7 @@ class HistoryCompactorService:
         return result
 
     @staticmethod
+    @wide_event("summarize_old_messages")
     async def summarize_old_messages(
         messages: list[Message],
     ) -> list[ModelMessage]:

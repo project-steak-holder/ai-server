@@ -52,9 +52,8 @@ async def test_ai_controller_v2_generate_stream_success():
     call_args = wide_event.add_context.call_args[1]
     assert call_args["user_id"] == "user-1"
     assert call_args["conversation_id"] == "conv-1"
-    assert call_args["user_message_preview"] == "hello world"
     assert call_args["streaming"] is True
-    assert "ai_service_start_time" in call_args
+    assert call_args["user_message_length"] == 11
 
     # Verify agent service was called with correct parameters
     agent_service.process_agent_query_stream.assert_called_once_with(
@@ -127,11 +126,6 @@ async def test_ai_controller_v2_generate_stream_with_long_message():
         agent_service=agent_service,
         _=None,
     )
-
-    # Verify wide_event preview is truncated to 50 characters
-    call_args = wide_event.add_context.call_args[1]
-    assert call_args["user_message_preview"] == "a" * 50
-    assert len(call_args["user_message_preview"]) == 50
 
 
 @pytest.mark.anyio

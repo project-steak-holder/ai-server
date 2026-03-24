@@ -86,5 +86,7 @@ async def test_global_exception_handler_generic_exception_with_wide_event():
     response = await global_exception_handler(request, RuntimeError("boom"))
 
     assert response.status_code == 500
-    error_context = wide_event.added[0]["error"]
-    assert error_context["exception_type"] == "RuntimeError"
+    # Error context is now flat — first call has error_code/category/message,
+    # second call has exception_type for 500s
+    assert wide_event.added[0]["error_code"] == "INTERNAL_ERROR"
+    assert wide_event.added[1]["exception_type"] == "RuntimeError"

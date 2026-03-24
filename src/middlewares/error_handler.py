@@ -43,36 +43,21 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         response.headers["X-Correlation-ID"] = correlation_id
 
     if wide_event:
-        error_context = {
-            "error_code": error_code,
-            "error_category": error_category,
-            "error_message": error_message,
-        }
+        wide_event.add_context(
+            error_code=error_code,
+            error_category=error_category,
+            error_message=error_message,
+        )
 
         if status_code >= 500:
-            error_context["exception_type"] = type(exc).__name__
+            wide_event.add_context(exception_type=type(exc).__name__)
 
         if error_details:
-            error_context["error_details"] = json.dumps(error_details)
-
-        request_context = {
-            "query_params": dict(request.query_params)
-            if request.query_params
-            else None,
-            "path_params": request.path_params if request.path_params else None,
-            "content_type": request.headers.get("content-type"),
-            "user_agent": request.headers.get("user-agent"),
-            "referer": request.headers.get("referer"),
-        }
-
-        if hasattr(request.state, "user_id"):
-            request_context["user_id"] = request.state.user_id
-        if hasattr(request.state, "conversation_id"):
-            request_context["conversation_id"] = request.state.conversation_id
+            wide_event.add_context(error_details=json.dumps(error_details))
 
         wide_event.add_context(
-            error=error_context,
-            request_metadata=request_context,
+            content_type=request.headers.get("content-type"),
+            user_agent=request.headers.get("user-agent"),
         )
         wide_event.emit(status_code, "error", exc)
     else:

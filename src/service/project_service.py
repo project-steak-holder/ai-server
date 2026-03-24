@@ -10,6 +10,7 @@ can be overridden with "PROJECT_FILE" environment variable
 import os
 import json
 from typing import Optional
+from src.middlewares.events import wide_event
 from src.schemas.project_model import Project
 
 from src.exceptions.context_load_exception import ContextLoadException
@@ -24,6 +25,7 @@ class ProjectService:
         """
         self.file_path = os.environ.get("PROJECT_FILE") or "data/project.json"
 
+    @wide_event("load_project")
     def load_project(self) -> Project:
         """loads project from file path set in init"""
         try:
@@ -48,6 +50,7 @@ class ProjectService:
             ) from e
 
     @staticmethod
+    @wide_event("get_project")
     def get_project() -> Project:
         """fetch project from service"""
         if ProjectService.project is None:

@@ -13,6 +13,7 @@ from typing import cast, AsyncGenerator
 
 
 from src.exceptions.llm_response_exception import LlmResponseException
+from src.middlewares.events import wide_event
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
 
@@ -93,6 +94,7 @@ def get_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     return _agent
 
 
+@wide_event("stakeholder_query")
 async def run_stakeholder_query(
     message: str,
     persona: Persona,
@@ -119,6 +121,7 @@ async def run_stakeholder_query(
         )
 
 
+@wide_event("stakeholder_query_stream")
 async def run_stakeholder_query_stream(
     message: str,
     persona: Persona,

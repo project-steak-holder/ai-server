@@ -8,6 +8,7 @@ import jwt
 from jwt import PyJWTError
 
 from src.exceptions.authentication_error import AuthenticationError
+from src.middlewares.events import wide_event
 
 NEON_AUTH_BASE_URL = os.environ.get("AUTH_URL", "")
 NEON_JWKS_URL = f"{NEON_AUTH_BASE_URL}/.well-known/jwks.json"
@@ -56,6 +57,7 @@ def get_signing_key(token, jwks):
     )
 
 
+@wide_event("validate_neon_token")
 async def validate_neon_token(token: str):
     try:
         jwks = await get_jwks()
