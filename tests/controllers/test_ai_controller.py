@@ -16,9 +16,7 @@ async def test_ai_controller_generate_success_and_error():
     current_user = AuthenticatedUser(user_id="user-1")
     wide_event = MagicMock()
     agent_service = MagicMock()
-    agent_service.process_agent_query = AsyncMock(
-        return_value={"status": "success", "response": "hi"}
-    )
+    agent_service.process_agent_query = AsyncMock(return_value="hi")
 
     result = await generate(payload, current_user, wide_event, agent_service, None)
 
@@ -26,12 +24,6 @@ async def test_ai_controller_generate_success_and_error():
     assert result.content == "hi"
     assert result.type is MessageType.ai
     assert wide_event.add_context.call_count == 2
-
-    agent_service.process_agent_query = AsyncMock(
-        return_value={"status": "error", "details": "x"}
-    )
-    with pytest.raises(HTTPException, match="Error processing agent query"):
-        await generate(payload, current_user, wide_event, agent_service, None)
 
 
 @pytest.mark.anyio
@@ -47,9 +39,7 @@ async def test_ai_controller_generate_rate_limit_is_a_dependency():
     current_user = AuthenticatedUser(user_id="user-1")
     wide_event = MagicMock()
     agent_service = MagicMock()
-    agent_service.process_agent_query = AsyncMock(
-        return_value={"status": "success", "response": "ok"}
-    )
+    agent_service.process_agent_query = AsyncMock(return_value="ok")
 
     result = await generate(payload, current_user, wide_event, agent_service, None)
 

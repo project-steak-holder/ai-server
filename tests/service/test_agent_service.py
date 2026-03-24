@@ -141,9 +141,8 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
         # Check that the compacted history has the correct types
         assert isinstance(compacted_history[0], ModelRequest)
         assert isinstance(compacted_history[1], ModelResponse)
-        # Verify result structure
-        assert result["status"] == "success"
-        assert "response" in result
+        # Verify result is the response string
+        assert result == "We have mountain bikes and road bikes!"
 
 
 @pytest.mark.anyio
@@ -167,15 +166,13 @@ async def test_process_agent_query_handles_llm_error(agent_service):
             message="LLM timeout", details={"error": "timeout"}
         )
 
-        result = await agent_service.process_agent_query(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
-        )
+        with pytest.raises(LlmResponseException, match="LLM timeout"):
+            await agent_service.process_agent_query(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            )
 
-        # Should return error event
-        assert result["status"] == "error"
-        assert "Error processing agent query" in result["response"]
         mock_compact.assert_called_once()
         mock_run.assert_called_once()
 
