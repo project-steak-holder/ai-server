@@ -2,15 +2,29 @@
 
 from unittest.mock import MagicMock
 
-from src.dependencies.database import get_message_repository, get_message_service
-from src.repository.model_repository import MessageRepository
+from src.dependencies.database import (
+    get_message_repository,
+    get_message_service,
+    get_sentiment_service,
+    get_sentiment_repository,
+)
+from src.repository.message_repository import MessageRepository
+from src.repository.sentiment_repository import SentimentRepository
 
 
 def test_dependencies_database_factories():
     session = MagicMock()
-    repo = get_message_repository(session)
-    service = get_message_service(repo)
+    message_repo = get_message_repository(session)
+    sentiment_repo = get_sentiment_repository(session)
 
-    assert isinstance(repo, MessageRepository)
-    assert repo.session is session
-    assert service.message_repository is repo
+    message_service = get_message_service(message_repo)
+    sentiment_service = get_sentiment_service(sentiment_repo)
+
+    assert isinstance(message_repo, MessageRepository)
+    assert isinstance(sentiment_repo, SentimentRepository)
+
+    assert message_repo.session is session
+    assert sentiment_repo.session is session
+
+    assert message_service.message_repository is message_repo
+    assert sentiment_service.sentiment_repository is sentiment_repo

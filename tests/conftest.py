@@ -10,7 +10,7 @@ from src.service.agent_service import AgentService
 from src.service.persona_service import PersonaService
 from src.service.project_service import ProjectService
 from src.service.message_service import MessageService
-from src.repository.model_repository import MessageRepository
+from src.repository.message_repository import MessageRepository
 from src.schemas.persona_model import (
     CommunicationRules,
     ExpertiseLevel,

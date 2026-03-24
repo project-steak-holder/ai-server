@@ -8,7 +8,10 @@ from src.service.agent_service import AgentService as AgentServiceClass
 from src.service.persona_service import PersonaService as PersonaServiceClass
 from src.service.project_service import ProjectService as ProjectServiceClass
 from src.service.message_service import MessageService as MessageServiceClass
-from src.dependencies.database import get_message_service
+from src.service.sentiment_data_service import (
+    SentimentDataService as SentimentDataServiceClass,
+)
+from src.dependencies.database import get_message_service, get_sentiment_service
 
 
 def get_persona_service() -> PersonaServiceClass:
@@ -32,7 +35,11 @@ def get_agent_service(
     )
 
 
+get_sentiment_data_service = Depends(get_sentiment_service)
+
+
 # Type aliases for dependency injection
 PersonaService = Annotated[PersonaServiceClass, Depends(get_persona_service)]
 ProjectService = Annotated[ProjectServiceClass, Depends(get_project_service)]
 AgentService = Annotated[AgentServiceClass, Depends(get_agent_service)]
+SentimentDataService = Annotated[SentimentDataServiceClass, get_sentiment_data_service]
