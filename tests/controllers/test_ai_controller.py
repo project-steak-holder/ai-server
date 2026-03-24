@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import HTTPException
 
 from src.controllers.ai_controller import generate
 from src.schemas.ai import GenerateRequest, GenerateResponse, MessageType
