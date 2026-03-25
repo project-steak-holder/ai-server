@@ -115,7 +115,7 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
             return_value=compacted_history,
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query",
+            "src.service.agent_service._run_stakeholder_query",
             new_callable=AsyncMock,
             return_value="We have mountain bikes and road bikes!",
         ) as mock_run,
@@ -159,7 +159,7 @@ async def test_process_agent_query_handles_llm_error(agent_service):
             new_callable=AsyncMock,
             return_value=[],
         ) as mock_compact,
-        patch("src.service.agent_service.run_stakeholder_query") as mock_run,
+        patch("src.service.agent_service._run_stakeholder_query") as mock_run,
     ):
         mock_run.side_effect = LlmResponseException(
             message="LLM timeout", details={"error": "timeout"}
@@ -212,7 +212,7 @@ async def test_process_agent_query_stream_success(agent_service):
             return_value=compacted_history,
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ) as mock_run_stream,
     ):
@@ -279,7 +279,7 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
             return_value=[],
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             side_effect=LlmResponseException(
                 message="LLM streaming timeout", details={"error": "timeout"}
             ),
@@ -335,7 +335,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             return_value=[],
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
     ):
@@ -379,7 +379,7 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
             return_value=[],
         ),
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
     ):
