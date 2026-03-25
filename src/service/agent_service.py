@@ -89,12 +89,21 @@ class AgentService:
             ModelMessage
         ] = await HistoryCompactorService.summarize_old_messages(history)
 
-        response_content = await run_stakeholder_query(
-            message=content,
-            persona=persona,
-            project=project,
-            history=compacted_history,
-        )
+        try:
+            response_content = await run_stakeholder_query(
+                message=content,
+                persona=persona,
+                project=project,
+                history=compacted_history,
+            )
+        except LlmResponseException:
+            error_message = (
+                "I'm sorry, I encountered an error and was unable to respond."
+            )
+            await self.message_service.save_ai_message(
+                user_id=user_id, conversation_id=conversation_id, content=error_message
+            )
+            raise
 
         await self.message_service.save_ai_message(
             user_id=user_id,
@@ -143,5 +152,11 @@ class AgentService:
             )
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
-        except LlmResponseException as e:
-            yield f"data: {json.dumps({'error': str(e), 'details': e.details or {}})}\n\n"
+        except LlmResponseException:
+            error_message = (
+                "I'm sorry, I encountered an error and was unable to respond."
+            )
+            await self.message_service.save_ai_message(
+                user_id=user_id, conversation_id=conversation_id, content=error_message
+            )
+            yield f"data: {json.dumps({'error': error_message})}\n\n"
