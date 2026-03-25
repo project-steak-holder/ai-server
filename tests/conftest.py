@@ -11,14 +11,6 @@ from src.service.agent_service import AgentService
 from src.service.message_service import MessageService
 from src.service.model_service import ModelService
 from src.repository.message_repository import MessageRepository
-from src.schemas.persona_model import (
-    CommunicationRules,
-    ExpertiseLevel,
-    Persona,
-    Personality,
-    PersonalityFocus,
-)
-from src.schemas.project_model import Project
 from src.models.message import Message as MessageModel
 from src.schemas.message_model import MessageType
 
