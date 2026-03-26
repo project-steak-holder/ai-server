@@ -2,8 +2,8 @@
 Test fixtures for pytest.
 """
 
-from unittest.mock import AsyncMock, MagicMock
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 import uuid
 from datetime import datetime, timezone
 
@@ -13,6 +13,45 @@ from src.service.model_service import ModelService
 from src.repository.message_repository import MessageRepository
 from src.models.message import Message as MessageModel
 from src.schemas.message_model import MessageType
+
+
+@pytest.fixture
+def sample_persona():
+    """Create a canonical sample persona for testing."""
+    from src.schemas.persona_model import (
+        Persona,
+        ExpertiseLevel,
+        Personality,
+        PersonalityFocus,
+        CommunicationRules,
+    )
+
+    return Persona(
+        name="Owen",
+        role="Owner, Golden Bikes",
+        location="Golden, CO",
+        background=["Entrepreneur", "Cycling enthusiast"],
+        goals=["Build successful bike rental business"],
+        expertise_level=ExpertiseLevel(business="high", technology="medium"),
+        personality=Personality(
+            tone=["friendly", "professional"],
+            professionalism="business casual",
+            focus=PersonalityFocus(can_tangent=False, refocus_easily=True),
+        ),
+        communication_rules=CommunicationRules(avoid=["technical jargon"]),
+    )
+
+
+@pytest.fixture
+def sample_project():
+    """Create a canonical sample project for testing."""
+    from src.schemas.project_model import Project
+
+    return Project(
+        project_name="Golden Bikes Rental System",
+        business_summary="A bike rental platform for urban commuters",
+        requirements=[],
+    )
 
 
 @pytest.fixture
@@ -88,7 +127,7 @@ def message_service(mock_message_repository):
 def agent_service(mock_message_service):
     """Create an AgentService with mocked dependencies."""
     mock_model_service = MagicMock(spec=ModelService)
-    # Provide real Persona and Project for load_model
+    # Provide real Persona and Project for _load_model
     from src.schemas.persona_model import (
         Persona,
         ExpertiseLevel,
@@ -117,7 +156,10 @@ def agent_service(mock_message_service):
         business_summary="summary",
         requirements=[],
     )
-    mock_model_service.load_model.side_effect = lambda name: (
+    mock_model_service._load_model.side_effect = lambda name: (
+        persona if name == "persona" else project if name == "project" else None
+    )
+    mock_model_service.get_model.side_effect = lambda name: (
         persona if name == "persona" else project if name == "project" else None
     )
     return AgentService(

@@ -23,4 +23,14 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.0",
+    "types-jmespath",
 ]
+
+[tool.mypy]
+check_untyped_defs = true
+
+[tool.ruff]
+exclude = ["venv", ".git"]
+
+[tool.ruff.lint]
+ignore = ["F402"]

@@ -8,7 +8,7 @@ Create Date: 2026-02-15 10:40:12.966688
 
 from typing import Sequence, Union
 
-from alembic import op  # type: ignore[attr-defined]
+from alembic import op  # type: ignore
 import sqlalchemy as sa
 
 

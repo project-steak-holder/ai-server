@@ -50,6 +50,7 @@ def test_database_module_raises_when_database_url_missing(monkeypatch):
 
     path = Path(__file__).resolve().parents[1] / "src" / "database.py"
     spec = importlib.util.spec_from_file_location("temp_database_no_env", path)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
 

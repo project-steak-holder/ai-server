@@ -1,6 +1,6 @@
 """Unit tests for service dependency factories."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from src.dependencies.services import (
     get_agent_service,
@@ -16,14 +16,12 @@ def test_dependencies_service_factories():
     model_service = get_model_service()
     assert model_service.__class__.__name__ == "ModelService"
 
-    with (
-        patch("src.dependencies.services.get_model_service", return_value="model"),
-        patch("src.dependencies.services.get_message_service", return_value="message"),
-    ):
-        agent_service = get_agent_service("model", "message")
+    mock_model_service = MagicMock(name="ModelService")
+    mock_message_service = MagicMock(name="MessageService")
+    agent_service = get_agent_service(mock_model_service, mock_message_service)
 
-    assert agent_service.message_service == "message"
-    assert agent_service.model_service == "model"
+    assert agent_service.message_service == mock_message_service
+    assert agent_service.model_service == mock_model_service
 
     # Test get_sentiment_service returns SentimentDataService instance with a mock repo
     mock_repo = MagicMock()
