@@ -18,8 +18,19 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
+    "pip-audit>=2.10.0",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.0",
+    "types-jmespath",
 ]
+
+[tool.mypy]
+check_untyped_defs = true
+
+[tool.ruff]
+exclude = ["venv", ".git"]
+
+[tool.ruff.lint]
+ignore = ["F402"]

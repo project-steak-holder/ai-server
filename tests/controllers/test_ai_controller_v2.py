@@ -25,8 +25,8 @@ async def test_ai_controller_v2_generate_stream_success():
             'data: {"content": "Hello ", "partial": true}\n\n',
             'data: {"content": "there!", "partial": true}\n\n',
             'data: {"complete": true}\n\n',
-        ]
-        for chunk in chunks:
+        ]  # noqa: F402
+        for chunk in chunks:  # noqa: F402
             yield chunk
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
@@ -71,13 +71,13 @@ async def test_ai_controller_v2_generate_stream_collects_chunks():
 
     # Mock streaming response with specific chunks
     async def mock_stream():
-        chunks = [
+        chunks = [  # noqa: F402
             'data: {"content": "We ", "partial": true}\n\n',
             'data: {"content": "have ", "partial": true}\n\n',
             'data: {"content": "bikes!", "partial": true}\n\n',
             'data: {"complete": true}\n\n',
         ]
-        for chunk in chunks:
+        for chunk in chunks:  # noqa: F402
             yield chunk
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
@@ -92,7 +92,7 @@ async def test_ai_controller_v2_generate_stream_collects_chunks():
 
     # Collect chunks from the streaming response
     chunks = []
-    async for chunk in result.body_iterator:
+    async for chunk in result.body_iterator:  # noqa: F402
         chunks.append(chunk)
 
     # Verify the chunks
@@ -108,14 +108,14 @@ async def test_ai_controller_v2_generate_stream_collects_chunks():
 @pytest.mark.anyio
 async def test_ai_controller_v2_generate_stream_with_long_message():
     """Test streaming with long message content (preview truncation)."""
-    long_content = "a" * 100  # 100 character message
+    long_content = "a" * 100  # 100-character message
     payload = GenerateRequest(conversation_id="conv-3", content=long_content)
     current_user = AuthenticatedUser(user_id="user-3")
     wide_event = MagicMock()
     agent_service = MagicMock()
 
     async def mock_stream():
-        yield 'data: {"content": "response", "partial": true}\n\n'
+        yield 'data: {"content": "response", "partial": true}\n\n'  # noqa: F402
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
 
@@ -262,6 +262,10 @@ async def test_ai_controller_v2_generate_stream_sse_format_compliance():
         chunks.append(chunk)
 
     for chunk in chunks:
+        if isinstance(chunk, bytes):
+            chunk = chunk.decode("utf-8")
+        elif isinstance(chunk, memoryview):
+            chunk = chunk.tobytes().decode("utf-8")
         # Each chunk should start with "data: "
         assert chunk.startswith("data: ")
         # Each chunk should end with "\n\n"
