@@ -8,11 +8,7 @@ from .database import (
     MessageService,
 )
 from .services import (
-    get_persona_service,
-    get_project_service,
     get_agent_service,
-    PersonaService,
-    ProjectService,
     AgentService,
 )
 
@@ -27,10 +23,8 @@ __all__ = [
     "get_message_service",
     "MessageRepository",
     "MessageService",
-    "get_persona_service",
-    "get_project_service",
+    # removed persona/project service exports
     "get_agent_service",
-    "PersonaService",
-    "ProjectService",
+    # removed persona/project service exports
     "AgentService",
 ]

@@ -15,44 +15,9 @@ from src.agents.stakeholder_agent import (
     run_stakeholder_query_stream,
     get_stakeholder_agent,
 )
-from src.schemas.persona_model import Persona
-from src.schemas.project_model import Project
 
 
-@pytest.fixture
-def sample_persona():
-    """Create a sample persona for testing."""
-    from src.schemas.persona_model import (
-        ExpertiseLevel,
-        Personality,
-        PersonalityFocus,
-        CommunicationRules,
-    )
-
-    return Persona(
-        name="Owen",
-        role="Owner, Golden Bikes",
-        location="Golden, CO",
-        background=["Entrepreneur", "Cycling enthusiast"],
-        goals=["Build successful bike rental business"],
-        expertise_level=ExpertiseLevel(business="high", technology="medium"),
-        personality=Personality(
-            tone=["friendly", "professional"],
-            professionalism="business casual",
-            focus=PersonalityFocus(can_tangent=False, refocus_easily=True),
-        ),
-        communication_rules=CommunicationRules(avoid=["technical jargon"]),
-    )
-
-
-@pytest.fixture
-def sample_project():
-    """Create a sample project for testing."""
-    return Project(
-        project_name="Golden Bikes Rental System",
-        business_summary="A bike rental platform for urban commuters",
-        requirements=[],
-    )
+# sample_persona and sample_project fixtures are now provided by conftest.py
 
 
 @pytest.fixture
@@ -216,7 +181,8 @@ def test_create_stakeholder_agent_builds_prompt(
         def __init__(self, **kwargs):
             captured["agent_kwargs"] = kwargs
 
-        def instructions(self, fn):
+        @staticmethod
+        def instructions(fn):
             captured["prompt_fn"] = fn
             return fn
 
@@ -235,7 +201,9 @@ def test_create_stakeholder_agent_builds_prompt(
             persona=sample_persona, project=sample_project, history=[]
         )
     )
-    prompt = captured["prompt_fn"](ctx)
+    prompt_fn = captured["prompt_fn"]
+    assert callable(prompt_fn), f"Expected a callable, got {type(prompt_fn)}"
+    prompt = prompt_fn(ctx)
 
     assert f"You are {sample_persona.name}" in prompt
     assert sample_project.project_name in prompt
@@ -272,9 +240,10 @@ async def test_run_stakeholder_query_stream_success(
     mock_streamed_result = MagicMock()
 
     # Mock the stream_text method to yield chunks
-    async def mock_stream_text(delta=True):
-        chunks = ["I think ", "we should ", "focus on ", "quality bikes."]
-        for chunk in chunks:
+    async def mock_stream_text(delta=None):
+        _ = delta
+        chunks = ["I think ", "we should ", "focus on ", "quality bikes."]  # noqa: F402
+        for chunk in chunks:  # noqa: F402
             yield chunk
 
     mock_streamed_result.stream_text = mock_stream_text
@@ -327,9 +296,10 @@ async def test_run_stakeholder_query_stream_with_empty_history(
 
     mock_streamed_result = MagicMock()
 
-    async def mock_stream_text(delta=True):
-        chunks = ["Hello! ", "How can ", "I help?"]
-        for chunk in chunks:
+    async def mock_stream_text(delta=None):
+        _ = delta
+        chunks = ["Hello! ", "How can ", "I help?"]  # noqa: F402
+        for chunk in chunks:  # noqa: F402
             yield chunk
 
     mock_streamed_result.stream_text = mock_stream_text
@@ -397,7 +367,7 @@ async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
     # Track the parameters passed to stream_text
     stream_text_calls = []
 
-    async def mock_stream_text(delta=True):
+    async def mock_stream_text(delta=None):
         stream_text_calls.append({"delta": delta})
         yield "test chunk"
 
