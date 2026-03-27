@@ -106,7 +106,7 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
             return_value=compacted_history,
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query",
+            "src.service.agent_service._run_stakeholder_query",
             new_callable=AsyncMock,
             return_value="We have mountain bikes and road bikes!",
         ) as mock_run,
@@ -138,26 +138,25 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
 
 @pytest.mark.anyio
 async def test_process_agent_query_handles_llm_error(agent_service):
-    """Test process_agent_query handles LLM errors gracefully."""
+    """Test process_agent_query saves error message and re-raises on LLM error."""
 
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
     content = "Test message"
 
-    # Patch the compactor to return an empty list
     with (
         patch(
             "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
             new_callable=AsyncMock,
             return_value=[],
         ) as mock_compact,
-        patch("src.service.agent_service.run_stakeholder_query") as mock_run,
+        patch("src.service.agent_service._run_stakeholder_query") as mock_run,
     ):
         mock_run.side_effect = LlmResponseException(
             message="LLM timeout", details={"error": "timeout"}
         )
 
-        with pytest.raises(LlmResponseException, match="LLM timeout"):
+        with pytest.raises(LlmResponseException):
             await agent_service.process_agent_query(
                 user_id=user_id,
                 conversation_id=conversation_id,
@@ -166,6 +165,13 @@ async def test_process_agent_query_handles_llm_error(agent_service):
 
         mock_compact.assert_called_once()
         mock_run.assert_called_once()
+
+        # Verify error message was saved to the database before re-raising
+        agent_service.message_service.save_ai_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content="I'm sorry, I encountered an error and was unable to respond.",
+        )
 
 
 @pytest.mark.anyio
@@ -197,7 +203,7 @@ async def test_process_agent_query_stream_success(agent_service):
             return_value=compacted_history,
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ) as mock_run_stream,
     ):
@@ -252,12 +258,11 @@ async def test_process_agent_query_stream_success(agent_service):
 
 @pytest.mark.anyio
 async def test_process_agent_query_stream_handles_llm_error(agent_service):
-    """Test process_agent_query_stream handles LLM errors gracefully."""
+    """Test process_agent_query_stream saves error message and yields SSE error event."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
     content = "Test message"
 
-    # Patch the compactor and streaming function to raise error
     with (
         patch(
             "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
@@ -265,13 +270,12 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
             return_value=[],
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             side_effect=LlmResponseException(
                 message="LLM streaming timeout", details={"error": "timeout"}
             ),
         ) as mock_run_stream,
     ):
-        # Collect streaming chunks
         chunks = []
         async for chunk in agent_service.process_agent_query_stream(
             user_id=user_id,
@@ -280,17 +284,28 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         ):
             chunks.append(chunk)
 
-        # Should return error event in SSE format
+        # Should yield a single SSE error event
         assert len(chunks) == 1
         assert chunks[0].startswith("data: ")
 
         import json
 
         error_data = json.loads(chunks[0][6:-2])  # Remove "data: " and "\n\n"
-        assert "error" in error_data
+        assert (
+            error_data["error"]
+            == "I'm sorry, I encountered an error and was unable to respond."
+        )
+        assert "details" not in error_data
 
         mock_compact.assert_called_once()
         mock_run_stream.assert_called_once()
+
+        # Verify error message was saved to the database
+        agent_service.message_service.save_ai_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content="I'm sorry, I encountered an error and was unable to respond.",
+        )
 
 
 @pytest.mark.anyio
@@ -311,7 +326,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             return_value=[],
         ) as mock_compact,
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
         patch.object(agent_service, "model_service", MagicMock()) as mock_model_service,
@@ -391,7 +406,7 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
             return_value=[],
         ),
         patch(
-            "src.service.agent_service.run_stakeholder_query_stream",
+            "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
     ):
