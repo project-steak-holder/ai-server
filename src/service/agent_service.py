@@ -10,8 +10,8 @@ from pydantic_ai import ModelMessage
 from pydantic import ValidationError
 
 from src.agents.stakeholder_agent import (
-    run_stakeholder_query,
-    run_stakeholder_query_stream,
+    run_stakeholder_query as _run_stakeholder_query,
+    run_stakeholder_query_stream as _run_stakeholder_query_stream,
 )
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import wide_event
@@ -72,6 +72,60 @@ class AgentService:
         """set from request payload in orchestrator method"""
         self.conversation_id = conversation_id
 
+    async def save_user_message(
+        self, user_id: str, conversation_id: str, content: str
+    ) -> Message:
+        """Persist the user's message via message service."""
+        return await self.message_service.save_user_message(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+
+    async def save_ai_message(
+        self, user_id: str, conversation_id: str, content: str
+    ) -> Message:
+        """Persist an AI message via message service."""
+        return await self.message_service.save_ai_message(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+
+    @wide_event("run_stakeholder_query")
+    async def run_stakeholder_query(self, content: str, history: list[Message]) -> str:
+        """Load context, compact history, and run the agent. Returns response string."""
+        persona = self.load_persona()
+        project = self.load_project()
+        compacted_history: list[
+            ModelMessage
+        ] = await HistoryCompactorService.summarize_old_messages(history)
+
+        return await _run_stakeholder_query(
+            message=content,
+            persona=persona,
+            project=project,
+            history=compacted_history,
+        )
+
+    async def run_stakeholder_query_stream(
+        self, content: str, history: list[Message]
+    ) -> AsyncGenerator[str, None]:
+        """Load context, compact history, and stream agent response chunks."""
+        persona = self.load_persona()
+        project = self.load_project()
+        compacted_history: list[
+            ModelMessage
+        ] = await HistoryCompactorService.summarize_old_messages(history)
+
+        async for chunk in _run_stakeholder_query_stream(
+            message=content,
+            persona=persona,
+            project=project,
+            history=compacted_history,
+        ):
+            yield chunk
+
     @wide_event("process_agent_query")
     async def process_agent_query(
         self, user_id: str, conversation_id: str, content: str
@@ -82,36 +136,26 @@ class AgentService:
         persists both request and response messages via persistence service
         returns response to controller as dict
         """
-        await self.message_service.save_user_message(
+        await self.save_user_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=content,
         )
 
-        persona = self.load_persona()
-        project = self.load_project()
-        history = await self.load_history(user_id, conversation_id)  # list[Message]
-        compacted_history: list[
-            ModelMessage
-        ] = await HistoryCompactorService.summarize_old_messages(history)
+        history = await self.load_history(user_id, conversation_id)
 
         try:
-            response_content = await run_stakeholder_query(
-                message=content,
-                persona=persona,
-                project=project,
-                history=compacted_history,
-            )
+            response_content = await self.run_stakeholder_query(content, history)
         except LlmResponseException:
             error_message = (
                 "I'm sorry, I encountered an error and was unable to respond."
             )
-            await self.message_service.save_ai_message(
+            await self.save_ai_message(
                 user_id=user_id, conversation_id=conversation_id, content=error_message
             )
             raise
 
-        await self.message_service.save_ai_message(
+        await self.save_ai_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=response_content,
@@ -125,35 +169,21 @@ class AgentService:
     ) -> AsyncGenerator[str, None]:
         """Stream agent response maintaining architectural consistency."""
 
-        # Save user message
-        await self.message_service.save_user_message(
+        await self.save_user_message(
             user_id=user_id, conversation_id=conversation_id, content=content
         )
 
-        # Load context (same as v1)
-        persona = self.load_persona()
-        project = self.load_project()
         history = await self.load_history(
             user_id=user_id, conversation_id=conversation_id
         )
-        compacted_history = await HistoryCompactorService.summarize_old_messages(
-            messages=history
-        )
 
-        # Stream through agent layer
         full_response = ""
         try:
-            async for chunk in run_stakeholder_query_stream(
-                message=content,
-                persona=persona,
-                project=project,
-                history=compacted_history,
-            ):
+            async for chunk in self.run_stakeholder_query_stream(content, history):
                 full_response += chunk
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
-            # Save complete response
-            await self.message_service.save_ai_message(
+            await self.save_ai_message(
                 user_id=user_id, conversation_id=conversation_id, content=full_response
             )
             yield f"data: {json.dumps({'complete': True})}\n\n"
@@ -162,7 +192,7 @@ class AgentService:
             error_message = (
                 "I'm sorry, I encountered an error and was unable to respond."
             )
-            await self.message_service.save_ai_message(
+            await self.save_ai_message(
                 user_id=user_id, conversation_id=conversation_id, content=error_message
             )
             yield f"data: {json.dumps({'error': error_message})}\n\n"
