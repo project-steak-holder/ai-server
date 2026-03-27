@@ -31,7 +31,7 @@ def test_valid_neon_token_payload():
         "updatedAt": "2024-01-01T00:00:00.000Z",
     }
 
-    token = NeonAuthTokenPayload(**valid_payload)
+    token = NeonAuthTokenPayload(**valid_payload)  # type: ignore
 
     assert token.user_id == "user-123"
     assert token.email == "user@example.com"
@@ -61,7 +61,7 @@ def test_expired_token_is_rejected():
     }
 
     with pytest.raises(AuthenticationError) as exc_info:
-        NeonAuthTokenPayload(**expired_payload)
+        NeonAuthTokenPayload(**expired_payload)  # type: ignore
 
     assert "expired" in str(exc_info.value).lower()
 
@@ -88,7 +88,7 @@ def test_banned_user_is_rejected():
     }
 
     with pytest.raises(AuthenticationError) as exc_info:
-        NeonAuthTokenPayload(**banned_payload)
+        NeonAuthTokenPayload(**banned_payload)  # type: ignore
 
     assert "banned" in str(exc_info.value).lower()
 
@@ -112,7 +112,7 @@ def test_missing_required_field():
     }
 
     with pytest.raises(ValidationError) as exc_info:
-        NeonAuthTokenPayload(**invalid_payload)
+        NeonAuthTokenPayload(**invalid_payload)  # type: ignore
 
     # Check that 'id' field is mentioned in the error
     errors = exc_info.value.errors()
@@ -140,7 +140,7 @@ def test_camelcase_fields_are_converted():
         "updatedAt": "2024-01-01T00:00:00.000Z",
     }
 
-    token = NeonAuthTokenPayload(**payload)
+    token = NeonAuthTokenPayload(**payload)  # type: ignore
 
     assert token.email_verified is True
     assert token.ban_reason is None
@@ -170,7 +170,7 @@ def test_user_id_property():
         "updatedAt": "2024-01-01T00:00:00.000Z",
     }
 
-    token = NeonAuthTokenPayload(**payload)
+    token = NeonAuthTokenPayload(**payload)  # type: ignore
 
     # user_id property should match id field
     assert token.user_id == token.id
@@ -198,7 +198,7 @@ def test_unverified_email_is_allowed():
         "updatedAt": "2024-01-01T00:00:00.000Z",
     }
 
-    token = NeonAuthTokenPayload(**payload)
+    token = NeonAuthTokenPayload(**payload)  # type: ignore
     assert token.email_verified is False
 
 
@@ -223,7 +223,7 @@ def test_optional_fields_can_be_none():
         "updatedAt": "2024-01-01T00:00:00.000Z",
     }
 
-    token = NeonAuthTokenPayload(**payload)
+    token = NeonAuthTokenPayload(**payload)  # type: ignore
 
     assert token.name is None
     assert token.ban_reason is None

@@ -15,15 +15,6 @@ from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.message_model import Message, MessageType
 
 
-@pytest.fixture
-def mock_message_service():
-    service = AsyncMock()
-    service.get_conversation_history = AsyncMock(return_value=mock_history)
-    service.save_user_message = AsyncMock()
-    service.save_ai_message = AsyncMock()
-    return service
-
-
 def test_load_persona(agent_service):
     """test loading persona from service / default file"""
     persona = agent_service.load_persona()
@@ -200,8 +191,8 @@ async def test_process_agent_query_stream_success(agent_service):
 
     # Mock streaming chunks
     async def mock_streaming_chunks():
-        chunks = ["We have ", "mountain bikes ", "and road bikes!"]
-        for chunk in chunks:
+        chunks = ["We have ", "mountain bikes ", "and road bikes!"]  # noqa: F402
+        for chunk in chunks:  # noqa: F402
             yield chunk
 
     # Patch the compactor and run_stakeholder_query_stream
@@ -338,7 +329,42 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             "src.service.agent_service.run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
+        patch.object(agent_service, "model_service", MagicMock()) as mock_model_service,
     ):
+        # Patch the mock_model_service to return real Persona/Project for get_model
+        from src.schemas.persona_model import (
+            ExpertiseLevel,
+            Personality,
+            PersonalityFocus,
+            CommunicationRules,
+        )
+
+        persona = Persona(
+            name="Owen",
+            role="Owner, Golden Bikes",
+            location="Test Location",
+            background=["bg"],
+            goals=["goal"],
+            expertise_level=ExpertiseLevel(business="high", technology="low"),
+            personality=Personality(
+                tone=["friendly"],
+                professionalism="casual",
+                focus=PersonalityFocus(can_tangent=False, refocus_easily=True),
+            ),
+            communication_rules=CommunicationRules(avoid=["jargon"]),
+        )
+        project = Project(
+            project_name="Golden Bikes Rental System",
+            business_summary="summary",
+            requirements=[],
+        )
+        mock_model_service.get_model.side_effect = lambda name: (
+            persona if name == "persona" else project if name == "project" else None
+        )
+        mock_model_service._load_model.side_effect = lambda name: (
+            persona if name == "persona" else project if name == "project" else None
+        )
+
         # Mock save_ai_message
         mock_message = MagicMock()
         agent_service.message_service.save_ai_message.return_value = mock_message
@@ -351,9 +377,10 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         ):
             pass
 
-        # Verify context loading methods were called (same as non-streaming)
-        assert agent_service.persona_service.load_persona.called
-        assert agent_service.project_service.load_project.called
+        # Verify model_service.get_model was called for persona and project
+        calls = [call[0][0] for call in mock_model_service.get_model.call_args_list]
+        assert "persona" in calls
+        assert "project" in calls
 
         # Verify compaction was called
         mock_compact.assert_called_once()
