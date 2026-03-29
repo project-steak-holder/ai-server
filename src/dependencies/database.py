@@ -11,7 +11,7 @@ from src.service.message_service import MessageService as MessageServiceClass
 from src.repository.sentiment_repository import (
     SentimentRepository as SentimentRepositoryClass,
 )
-from src.service.sentiment_data_service import (
+from src.service.sentiment_service import (
     SentimentDataService as SentimentDataServiceClass,
 )
 

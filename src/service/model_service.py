@@ -11,10 +11,13 @@ from pydantic import ValidationError
 from src.exceptions.context_load_exception import ContextLoadException
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
+from src.schemas.sentiment_scale_model import SentimentScale
+from src.schemas.listening_cues_model import ListeningCues
+from src.schemas.instructions_model import InstructionsModel
 
 
 # only models listed in registry supported
-ModelType = Union[Persona, Project]
+ModelType = Union[Persona, Project, SentimentScale, ListeningCues, InstructionsModel]
 
 
 # TypedDict for registry entries
@@ -46,6 +49,21 @@ class ModelService:
                 "schema": Project,
                 "env_var": "PROJECT_FILE",
                 "default_path": "data/project.json",
+            },
+            "sentiment_scale": {
+                "schema": SentimentScale,
+                "env_var": "SENTIMENT_SCALE_FILE",
+                "default_path": "data/sentiment_scale.json",
+            },
+            "listening_cues": {
+                "schema": ListeningCues,
+                "env_var": "LISTENING_CUES_FILE",
+                "default_path": "data/listening_cues.json",
+            },
+            "instructions": {
+                "schema": InstructionsModel,
+                "env_var": "INSTRUCTIONS_FILE",
+                "default_path": "data/instructions.json",
             },
             # Add new models here as needed
         }

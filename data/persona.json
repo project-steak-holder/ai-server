@@ -22,7 +22,8 @@
     "focus": {
       "can_tangent": true,
       "refocus_easily": true
-    }
+    },
+    "sentiment": null
   },
   "communication_rules": {
     "avoid": ["overly corporate language", "deep technical explanations"]

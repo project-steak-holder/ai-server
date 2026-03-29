@@ -15,6 +15,9 @@ from src.agents.stakeholder_agent import (
     run_stakeholder_query_stream,
     get_stakeholder_agent,
 )
+from src.schemas.sentiment_scale_model import SentimentScale, SentimentScaleEntry
+from src.schemas.listening_cues_model import ListeningCues, ListeningCue
+from src.schemas.instructions_model import InstructionsModel
 
 
 # sample_persona and sample_project fixtures are now provided by conftest.py
@@ -37,6 +40,9 @@ def test_agent_dependencies_model(sample_persona, sample_project, sample_history
         persona=sample_persona,
         project=sample_project,
         history=sample_history,
+        sentiment_scale=dummy_sentiment_scale(),
+        listening_cues=dummy_listening_cues(),
+        instructions=dummy_instructions(),
     )
 
     assert deps.persona.name == "Owen"
@@ -46,9 +52,16 @@ def test_agent_dependencies_model(sample_persona, sample_project, sample_history
 
 def test_agent_response_model():
     """Test AgentResponse Pydantic model validation."""
-    response = AgentResponse(content="Hello, I'm Owen!")
 
+    # Test default sentiment (should be None)
+    response = AgentResponse(content="Hello, I'm Owen!")
     assert response.content == "Hello, I'm Owen!"
+    assert response.sentiment is None
+
+    # Test explicit sentiment value
+    response_with_sentiment = AgentResponse(content="Hello, I'm Owen!", sentiment=0.75)
+    assert response_with_sentiment.content == "Hello, I'm Owen!"
+    assert response_with_sentiment.sentiment == 0.75
 
 
 def test_get_stakeholder_agent_singleton():
@@ -68,7 +81,9 @@ async def test_run_stakeholder_query_success(
 
     # Mock the agent's run method result
     mock_result = MagicMock()
-    mock_response = AgentResponse(content="I think we should focus on quality bikes.")
+    mock_response = AgentResponse(
+        content="I think we should focus on quality bikes.", sentiment=0.5
+    )
     mock_result.output = mock_response
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
@@ -82,6 +97,9 @@ async def test_run_stakeholder_query_success(
             persona=sample_persona,
             project=sample_project,
             history=sample_history,
+            sentiment_scale=dummy_sentiment_scale(),
+            listening_cues=dummy_listening_cues(),
+            instructions=dummy_instructions(),
         )
 
         # Verify the result
@@ -107,7 +125,7 @@ async def test_run_stakeholder_query_with_empty_history(sample_persona, sample_p
     """Test stakeholder query with no conversation history."""
 
     mock_result = MagicMock()
-    mock_response = AgentResponse(content="Hello! How can I help?")
+    mock_response = AgentResponse(content="Hello! How can I help?", sentiment=-0.2)
     mock_result.output = mock_response
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
@@ -121,6 +139,9 @@ async def test_run_stakeholder_query_with_empty_history(sample_persona, sample_p
             persona=sample_persona,
             project=sample_project,
             history=[],
+            sentiment_scale=dummy_sentiment_scale(),
+            listening_cues=dummy_listening_cues(),
+            instructions=dummy_instructions(),
         )
 
         assert result == "Hello! How can I help?"
@@ -137,7 +158,9 @@ async def test_run_stakeholder_query_preserves_persona_characteristics(
     """Test that query preserves persona characteristics in dependencies."""
 
     mock_result = MagicMock()
-    mock_response = AgentResponse(content="As a business owner, I think...")
+    mock_response = AgentResponse(
+        content="As a business owner, I think...", sentiment=1.0
+    )
     mock_result.output = mock_response
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
@@ -150,6 +173,9 @@ async def test_run_stakeholder_query_preserves_persona_characteristics(
             persona=sample_persona,
             project=sample_project,
             history=[],
+            sentiment_scale=dummy_sentiment_scale(),
+            listening_cues=dummy_listening_cues(),
+            instructions=dummy_instructions(),
         )
 
         # Verify persona details are preserved
@@ -196,9 +222,32 @@ def test_create_stakeholder_agent_builds_prompt(
     agent = create_stakeholder_agent()
     assert isinstance(agent, FakeAgent)
 
+    # Provide required dummy dependencies for AgentDependencies
+    from src.schemas.sentiment_scale_model import SentimentScale, SentimentScaleEntry
+    from src.schemas.listening_cues_model import ListeningCues, ListeningCue
+    from src.schemas.instructions_model import InstructionsModel
+
+    dummy_sentiment_scale = SentimentScale(
+        purpose="test", scale=[SentimentScaleEntry(label="neutral", score=0)]
+    )
+    dummy_listening_cues = ListeningCues(
+        purpose="test", cues={"positive": [ListeningCue(cue="good", score=1.0)]}
+    )
+    dummy_instructions = InstructionsModel(
+        purpose="test",
+        precedence=True,
+        references=[],
+        instructions=["Do something"],
+        notes=None,
+    )
     ctx = SimpleNamespace(
         deps=AgentDependencies(
-            persona=sample_persona, project=sample_project, history=[]
+            persona=sample_persona,
+            project=sample_project,
+            history=[],
+            sentiment_scale=dummy_sentiment_scale,
+            listening_cues=dummy_listening_cues,
+            instructions=dummy_instructions,
         )
     )
     prompt_fn = captured["prompt_fn"]
@@ -227,6 +276,9 @@ async def test_run_stakeholder_query_wraps_unexpected_exception(
                 persona=sample_persona,
                 project=sample_project,
                 history=[],
+                sentiment_scale=dummy_sentiment_scale(),
+                listening_cues=dummy_listening_cues(),
+                instructions=dummy_instructions(),
             )
 
 
@@ -263,6 +315,9 @@ async def test_run_stakeholder_query_stream_success(
             persona=sample_persona,
             project=sample_project,
             history=sample_history,
+            sentiment_scale=dummy_sentiment_scale(),
+            listening_cues=dummy_listening_cues(),
+            instructions=dummy_instructions(),
         ):
             chunks.append(chunk)
 
@@ -319,6 +374,9 @@ async def test_run_stakeholder_query_stream_with_empty_history(
             persona=sample_persona,
             project=sample_project,
             history=[],
+            sentiment_scale=dummy_sentiment_scale(),
+            listening_cues=dummy_listening_cues(),
+            instructions=dummy_instructions(),
         ):
             chunks.append(chunk)
 
@@ -352,6 +410,9 @@ async def test_run_stakeholder_query_stream_wraps_unexpected_exception(
                 persona=sample_persona,
                 project=sample_project,
                 history=[],
+                sentiment_scale=dummy_sentiment_scale(),
+                listening_cues=dummy_listening_cues(),
+                instructions=dummy_instructions(),
             ):
                 pass
 
@@ -387,9 +448,30 @@ async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
             persona=sample_persona,
             project=sample_project,
             history=[],
+            sentiment_scale=dummy_sentiment_scale(),
+            listening_cues=dummy_listening_cues(),
+            instructions=dummy_instructions(),
         ):
             pass
 
         # Verify stream_text was called with delta=True
         assert len(stream_text_calls) == 1
         assert stream_text_calls[0]["delta"] is True
+
+
+def dummy_sentiment_scale():
+    return SentimentScale(
+        purpose="test", scale=[SentimentScaleEntry(label="neutral", score=0)]
+    )
+
+
+def dummy_listening_cues():
+    return ListeningCues(
+        purpose="test", cues={"cue1": [ListeningCue(cue="desc1", score=1.0)]}
+    )
+
+
+def dummy_instructions():
+    return InstructionsModel(
+        purpose="test", references=[], instructions=["Do X", "Do Y"]
+    )

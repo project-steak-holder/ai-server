@@ -6,7 +6,7 @@ import pytest
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
-from src.service.sentiment_data_service import SentimentDataService
+from src.service.sentiment_service import SentimentDataService
 from src.models.sentiment import Sentiment
 
 

@@ -16,6 +16,9 @@ from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import wide_event
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
+from src.schemas.sentiment_scale_model import SentimentScale
+from src.schemas.listening_cues_model import ListeningCues
+from src.schemas.instructions_model import InstructionsModel
 
 
 class AgentDependencies(BaseModel):
@@ -24,12 +27,19 @@ class AgentDependencies(BaseModel):
     persona: Persona
     project: Project
     history: list[ModelMessage] = Field(default_factory=list)
+    sentiment_scale: "SentimentScale"
+    listening_cues: "ListeningCues"
+    instructions: "InstructionsModel"
 
 
 class AgentResponse(BaseModel):
     """Structured response from the stakeholder agent."""
 
     content: str = Field(..., description="The agent's response message")
+    sentiment: float | None = Field(
+        default=None,
+        description="The updated sentiment value after this message, if available.",
+    )
 
 
 # Initialize PydanticAI Agent
@@ -100,6 +110,9 @@ async def run_stakeholder_query(
     persona: Persona,
     project: Project,
     history: list[ModelMessage],
+    sentiment_scale: SentimentScale,
+    listening_cues: ListeningCues,
+    instructions: InstructionsModel,
 ) -> str:
     """Run a query through the stakeholder agent."""
     agent = get_stakeholder_agent()
@@ -109,6 +122,9 @@ async def run_stakeholder_query(
         persona=persona,
         project=project,
         history=history,
+        sentiment_scale=sentiment_scale,
+        listening_cues=listening_cues,
+        instructions=instructions,
     )
     try:
         result = await agent.run(
@@ -127,11 +143,21 @@ async def run_stakeholder_query_stream(
     persona: Persona,
     project: Project,
     history: list[ModelMessage],
+    sentiment_scale: SentimentScale,
+    listening_cues: ListeningCues,
+    instructions: InstructionsModel,
 ) -> AsyncGenerator[str, None]:
     """Yield text chunks directly - maintain layer consistency."""
     agent = get_stakeholder_agent()
 
-    deps = AgentDependencies(persona=persona, project=project, history=history)
+    deps = AgentDependencies(
+        persona=persona,
+        project=project,
+        history=history,
+        sentiment_scale=sentiment_scale,
+        listening_cues=listening_cues,
+        instructions=instructions,
+    )
 
     try:
         async with agent.run_stream(

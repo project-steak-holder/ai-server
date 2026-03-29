@@ -1,0 +1,28 @@
+{
+    "purpose": "backend LLM listens for these in stakeholder input",
+    "outcome": "LLM will tally heard cues into sentiment_delta",
+    "listening_cues": {
+        "positive": [
+            {"cue": "values stakeholder time", "score": 0.5},
+            {"cue": "asks permission", "score": 0.5},
+            {"cue": "acknowledges stakeholder input", "score": 1},
+            {"cue": "shows stakeholder benefit", "score": 1},
+            {"cue": "effective listening (80/20)", "score": 0.5},
+            {"cue": "asks open-ended questions", "score": 1},
+            {"cue": "asks relevant follow-up", "score": 1},
+            {"cue": "asks about stakeholder goals", "score": 2},
+            {"cue": "accurately paraphrases input", "score": 2},
+            {"cue": "asks for specific example", "score": 1.5},
+            {"cue": "confirms understanding", "score": 1}
+        ],
+        "negative": [
+            {"cue": "lack of preparation", "score": -1.5},
+            {"cue": "inconsistent with stakeholder input", "score": -1.5},
+            {"cue": "disrespectful", "score": -3},
+            {"cue": "offers premature solution", "score": -2.5},
+            {"cue": "no follow-up on vague input", "score": -2},
+            {"cue": "ignores requirement/constraint", "score": -3},
+            {"cue": ">2 questions", "score": -1.5, "note": "-0.05 each extra, cap -3.0"}
+        ]
+    }
+}

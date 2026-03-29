@@ -8,7 +8,7 @@ with DI at container launch
 """
 
 from pydantic import BaseModel, ConfigDict
-from typing import List
+from typing import List, Optional
 
 
 class ExpertiseLevel(BaseModel):
@@ -33,6 +33,9 @@ class Personality(BaseModel):
     tone: List[str]
     professionalism: str
     focus: PersonalityFocus
+    sentiment: Optional[float] = (
+        None  # Current sentiment score for the conversation (decimal to hundredths)
+    )
     model_config = ConfigDict(extra="allow")
 
 

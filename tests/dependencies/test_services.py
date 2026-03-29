@@ -8,7 +8,7 @@ from src.dependencies.services import (
     get_sentiment_data_service,
 )
 from src.dependencies.database import get_sentiment_service
-from src.service.sentiment_data_service import SentimentDataService
+from src.service.sentiment_service import SentimentDataService
 
 
 def test_dependencies_service_factories():
@@ -18,7 +18,10 @@ def test_dependencies_service_factories():
 
     mock_model_service = MagicMock(name="ModelService")
     mock_message_service = MagicMock(name="MessageService")
-    agent_service = get_agent_service(mock_model_service, mock_message_service)
+    mock_sentiment_service = MagicMock(name="SentimentDataService")
+    agent_service = get_agent_service(
+        mock_model_service, mock_message_service, mock_sentiment_service
+    )
 
     assert agent_service.message_service == mock_message_service
     assert agent_service.model_service == mock_model_service

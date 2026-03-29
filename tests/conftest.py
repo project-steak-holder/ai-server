@@ -136,6 +136,9 @@ def agent_service(mock_message_service):
         CommunicationRules,
     )
     from src.schemas.project_model import Project
+    from src.schemas.sentiment_scale_model import SentimentScale, SentimentScaleEntry
+    from src.schemas.listening_cues_model import ListeningCues, ListeningCue
+    from src.schemas.instructions_model import InstructionsModel
 
     persona = Persona(
         name="Owen",
@@ -156,13 +159,93 @@ def agent_service(mock_message_service):
         business_summary="summary",
         requirements=[],
     )
-    mock_model_service._load_model.side_effect = lambda name: (
-        persona if name == "persona" else project if name == "project" else None
+    sentiment_scale = SentimentScale(
+        purpose="translate between numerical sentiment score and persona-guiding sentiment verb",
+        scale=[
+            SentimentScaleEntry(score=-10, label="Furious"),
+            SentimentScaleEntry(score=-8, label="Angry"),
+            SentimentScaleEntry(score=-6, label="Frustrated"),
+            SentimentScaleEntry(score=-4, label="Annoyed"),
+            SentimentScaleEntry(score=-2, label="Disinterested"),
+            SentimentScaleEntry(score=0, label="Neutral"),
+            SentimentScaleEntry(score=2, label="Receptive"),
+            SentimentScaleEntry(score=4, label="Engaged"),
+            SentimentScaleEntry(score=6, label="Enthusiastic"),
+            SentimentScaleEntry(score=8, label="Excited"),
+            SentimentScaleEntry(score=10, label="Elated"),
+        ],
     )
+    listening_cues = ListeningCues(
+        purpose="backend LLM listens for these in stakeholder input",
+        cues={
+            "positive": [
+                ListeningCue(cue="values stakeholder time", score=0.5),
+                ListeningCue(cue="asks permission", score=0.5),
+                ListeningCue(cue="acknowledges stakeholder input", score=1),
+                ListeningCue(cue="shows stakeholder benefit", score=1),
+                ListeningCue(cue="effective listening (80/20)", score=0.5),
+                ListeningCue(cue="asks open-ended questions", score=1),
+                ListeningCue(cue="asks relevant follow-up", score=1),
+                ListeningCue(cue="asks about stakeholder goals", score=2),
+                ListeningCue(cue="accurately paraphrases input", score=2),
+                ListeningCue(cue="asks for specific example", score=1.5),
+                ListeningCue(cue="confirms understanding", score=1),
+            ],
+            "negative": [
+                ListeningCue(cue="lack of preparation", score=-1.5),
+                ListeningCue(cue="inconsistent with stakeholder input", score=-1.5),
+                ListeningCue(cue="disrespectful", score=-3),
+                ListeningCue(cue="offers premature solution", score=-2.5),
+                ListeningCue(cue="no follow-up on vague input", score=-2),
+                ListeningCue(cue="ignores requirement/constraint", score=-3),
+                ListeningCue(
+                    cue=">2 questions", score=-1.5, note="-0.05 each extra, cap -3.0"
+                ),
+            ],
+        },
+    )
+    instructions = InstructionsModel(
+        purpose="Primary instructions and rules for dynamic agent sentiment; references other models for cues and scale.",
+        precedence=True,
+        references=["listening_cues", "sentiment_scale"],
+        instructions=[
+            "1. Receive the following inputs: user message, current_sentiment (from persona), listening_cues, and sentiment_scale.",
+            "2. Analyze the user message for evidence of listening cues, using the definitions in listening_cues.",
+            "3. For each detected cue, add its score to a running total (sentiment_delta). Select up to 3 positive and 2 negative cues per turn, with no overlap; prefer the most specific/high impact cues.",
+            "4. Require explicit evidence for each cue; do not infer cues without clear support in the user message.",
+            "5. If both positive and negative cues are present, include both and sum their scores. For multi-question cues, treat as a single cue and apply the cap as defined.",
+            "6. Calculate sentiment_delta as the sum of the selected cue scores, rounded to two decimal places. If no cues are detected, sentiment_delta = 0.00.",
+            "7. Calculate updated_sentiment = current_sentiment + sentiment_delta. Clamp updated_sentiment to the range -10 to +10.",
+            "8. Use sentiment_scale to map updated_sentiment to the nearest sentiment label. Use this label to guide the tone of the response.",
+            "9. Update the persona's sentiment field with the updated_sentiment value before generating the response.",
+            "10. Use the updated persona (including the new sentiment) as the basis for generating the response, ensuring the tone matches the sentiment label.",
+            "11. Generate a response message using the updated sentiment label for tone.",
+            "12. Return only the following structured output: { 'message': <response>, 'sentiment_delta': <decimal> }.",
+            "13. Do not include any internal reasoning, <think> tags, or cues in the output; only return the structured response.",
+            "14. If the output cannot be generated as specified, set sentiment_delta = 0.00 and return an appropriate message.",
+        ],
+    )
+    # Do not mock protected member _load_model; only mock public interface
     mock_model_service.get_model.side_effect = lambda name: (
-        persona if name == "persona" else project if name == "project" else None
+        persona
+        if name == "persona"
+        else project
+        if name == "project"
+        else sentiment_scale
+        if name == "sentiment_scale"
+        else listening_cues
+        if name == "listening_cues"
+        else instructions
+        if name == "instructions"
+        else None
     )
+    from unittest.mock import AsyncMock
+
+    mock_sentiment_service = MagicMock()
+    mock_sentiment_service.get_sentiment = AsyncMock(return_value=None)
+    mock_sentiment_service.update_sentiment = AsyncMock(return_value=None)
     return AgentService(
         model_service=mock_model_service,
         message_service=mock_message_service,
+        sentiment_service=mock_sentiment_service,
     )

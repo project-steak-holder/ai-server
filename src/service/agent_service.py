@@ -5,22 +5,29 @@ persistence, persona, project context, and LLM interaction for a project stakeho
 """
 
 import json
+import re
+from decimal import Decimal, InvalidOperation
 from typing import AsyncGenerator
 from pydantic_ai import ModelMessage
 from pydantic import ValidationError
 
-from src.agents.stakeholder_agent import (
-    run_stakeholder_query as _run_stakeholder_query,
-    run_stakeholder_query_stream as _run_stakeholder_query_stream,
-)
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import wide_event
 from src.schemas.message_model import Message
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
+from src.schemas.sentiment_scale_model import SentimentScale
+from src.schemas.listening_cues_model import ListeningCues
+from src.schemas.instructions_model import InstructionsModel
 from src.service.history_compactor_service import HistoryCompactorService
 from src.service.model_service import ModelService
 from src.service.message_service import MessageService
+from src.service.persona_with_sentiment import get_persona_with_sentiment
+from src.agents.stakeholder_agent import (
+    run_stakeholder_query as _run_stakeholder_query,
+    run_stakeholder_query_stream as _run_stakeholder_query_stream,
+    AgentResponse,
+)
 
 
 class AgentService:
@@ -30,10 +37,11 @@ class AgentService:
         self,
         model_service: ModelService,
         message_service: MessageService,
+        sentiment_service,
     ) -> None:
-        # dependencies injected via FastAPI
         self.model_service: ModelService = model_service
         self.message_service: MessageService = message_service
+        self.sentiment_service = sentiment_service
         self.request: str | None = None
         self.conversation_id: str | None = None
 
@@ -51,6 +59,27 @@ class AgentService:
             raise TypeError(f"Expected Project, got {type(result).__name__}")
         return result
 
+    def load_sentiment_scale(self):
+        """loads sentiment_scale model from model service"""
+        result = self.model_service.get_model("sentiment_scale")
+        if not isinstance(result, SentimentScale):
+            raise TypeError(f"Expected SentimentScale, got {type(result).__name__}")
+        return result
+
+    def load_listening_cues(self):
+        """loads listening_cues model from model service"""
+        result = self.model_service.get_model("listening_cues")
+        if not isinstance(result, ListeningCues):
+            raise TypeError(f"Expected ListeningCues, got {type(result).__name__}")
+        return result
+
+    def load_instructions(self):
+        """loads instructions model from model service"""
+        result = self.model_service.get_model("instructions")
+        if not isinstance(result, InstructionsModel):
+            raise TypeError(f"Expected InstructionsModel, got {type(result).__name__}")
+        return result
+
     async def load_history(self, user_id: str, conversation_id: str) -> list[Message]:
         """loads from message service"""
         db_messages = await self.message_service.get_conversation_history(
@@ -61,7 +90,6 @@ class AgentService:
                 Message.model_validate(msg, from_attributes=True) for msg in db_messages
             ]
         except ValidationError as ve:
-            # Optionally, you could raise a custom exception here for clarity
             raise Exception(f"Validation error in message history: {ve}") from ve
 
     def set_request(self, request: str) -> None:
@@ -93,36 +121,46 @@ class AgentService:
         )
 
     @wide_event("run_stakeholder_query")
-    async def run_stakeholder_query(self, content: str, history: list[Message]) -> str:
-        """Load context, compact history, and run the agent. Returns response string."""
-        persona = self.load_persona()
+    async def run_stakeholder_query(
+        self, content: str, history: list[Message], persona: Persona
+    ):
+        """Load context, compact history, and run the agent. Returns AgentResponse object."""
         project = self.load_project()
+        sentiment_scale = self.load_sentiment_scale()
+        listening_cues = self.load_listening_cues()
+        instructions = self.load_instructions()
         compacted_history: list[
             ModelMessage
         ] = await HistoryCompactorService.summarize_old_messages(history)
-
         return await _run_stakeholder_query(
             message=content,
             persona=persona,
             project=project,
             history=compacted_history,
+            sentiment_scale=sentiment_scale,
+            listening_cues=listening_cues,
+            instructions=instructions,
         )
 
     async def run_stakeholder_query_stream(
-        self, content: str, history: list[Message]
+        self, content: str, history: list[Message], persona: Persona
     ) -> AsyncGenerator[str, None]:
         """Load context, compact history, and stream agent response chunks."""
-        persona = self.load_persona()
         project = self.load_project()
+        sentiment_scale = self.load_sentiment_scale()
+        listening_cues = self.load_listening_cues()
+        instructions = self.load_instructions()
         compacted_history: list[
             ModelMessage
         ] = await HistoryCompactorService.summarize_old_messages(history)
-
         async for chunk in _run_stakeholder_query_stream(
             message=content,
             persona=persona,
             project=project,
             history=compacted_history,
+            sentiment_scale=sentiment_scale,
+            listening_cues=listening_cues,
+            instructions=instructions,
         ):
             yield chunk
 
@@ -144,24 +182,66 @@ class AgentService:
 
         history = await self.load_history(user_id, conversation_id)
 
-        try:
-            response_content = await self.run_stakeholder_query(content, history)
-        except LlmResponseException:
-            error_message = (
-                "I'm sorry, I encountered an error and was unable to respond."
-            )
-            await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=error_message
-            )
-            raise
+        persona = self.load_persona()
+        persona_with_sentiment = await get_persona_with_sentiment(
+            persona, self.sentiment_service, conversation_id
+        )
 
+        agent_response = await self.run_stakeholder_query(
+            content, history, persona_with_sentiment
+        )
+
+        # If agent_response is a string, treat as content only
+        if isinstance(agent_response, str):
+            content_to_save = agent_response
+            sentiment_delta = None
+        else:
+            content_to_save = getattr(agent_response, "content", str(agent_response))
+            sentiment_delta = getattr(agent_response, "sentiment", None)
+
+        # Strip <think> tags from content before saving (robust, handles multiple tags and whitespace)
+        content_to_save = re.sub(
+            r"<think>.*?</think>", "", content_to_save, flags=re.DOTALL | re.IGNORECASE
+        )
+        content_to_save = re.sub(r"\s+", " ", content_to_save).strip()
+
+        # Retrieve current sentiment from DB
+        sentiment_obj = await self.sentiment_service.get_sentiment(conversation_id)
+        current_sentiment = (
+            Decimal(str(sentiment_obj.sentiment))
+            if sentiment_obj and sentiment_obj.sentiment is not None
+            else Decimal("0.00")
+        )
+
+        # Validate and parse delta
+        try:
+            delta = (
+                Decimal(str(sentiment_delta))
+                if sentiment_delta is not None
+                else Decimal("0.00")
+            )
+        except (InvalidOperation, ValueError):
+            delta = Decimal("0.00")
+
+        # Compute updated sentiment and clamp
+        updated_sentiment = current_sentiment + delta
+        updated_sentiment = max(
+            Decimal("-10.00"), min(Decimal("10.00"), updated_sentiment)
+        )
+
+        # Persist updated sentiment
+        await self.sentiment_service.update_sentiment(
+            conversation_id, updated_sentiment
+        )
+
+        # Save only the content to the message history
         await self.save_ai_message(
             user_id=user_id,
             conversation_id=conversation_id,
-            content=response_content,
+            content=content_to_save,
         )
 
-        return response_content
+        return content_to_save
 
     @wide_event("process_agent_query_stream")
     async def process_agent_query_stream(
@@ -177,14 +257,64 @@ class AgentService:
             user_id=user_id, conversation_id=conversation_id
         )
 
+        persona = self.load_persona()
+        persona_with_sentiment = await get_persona_with_sentiment(
+            persona, self.sentiment_service, conversation_id
+        )
+
         full_response = ""
         try:
-            async for chunk in self.run_stakeholder_query_stream(content, history):
+            async for chunk in self.run_stakeholder_query_stream(
+                content, history, persona_with_sentiment
+            ):
                 full_response += chunk
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
+            # Try to parse the full response as AgentResponse
+            try:
+                response_obj = AgentResponse.model_validate(json.loads(full_response))
+            except (json.JSONDecodeError, ValidationError, TypeError, ValueError):
+                response_obj = None
+
+            # Retrieve current sentiment from DB
+            sentiment_obj = await self.sentiment_service.get_sentiment(conversation_id)
+            current_sentiment = (
+                Decimal(str(sentiment_obj.sentiment))
+                if sentiment_obj and sentiment_obj.sentiment is not None
+                else Decimal("0.00")
+            )
+
+            # Validate and parse delta
+            sentiment_delta = (
+                getattr(response_obj, "sentiment", None) if response_obj else None
+            )
+            try:
+                delta = (
+                    Decimal(str(sentiment_delta))
+                    if sentiment_delta is not None
+                    else Decimal("0.00")
+                )
+            except (InvalidOperation, ValueError):
+                delta = Decimal("0.00")
+                # Optionally log error here
+
+            # Compute updated sentiment and clamp
+            updated_sentiment = current_sentiment + delta
+            updated_sentiment = max(
+                Decimal("-10.00"), min(Decimal("10.00"), updated_sentiment)
+            )
+
+            # Persist updated sentiment
+            await self.sentiment_service.update_sentiment(
+                conversation_id, updated_sentiment
+            )
+
+            # Save only the content to the message history
+            content_to_save = response_obj.content if response_obj else full_response
             await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=full_response
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content_to_save,
             )
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
