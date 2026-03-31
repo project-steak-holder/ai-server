@@ -80,20 +80,26 @@ class AgentService:
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
         """Persist the user's message via message service."""
-        return await self.message_service.save_user_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
+        return Message.model_validate(
+            await self.message_service.save_user_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
         )
 
     async def save_ai_message(
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
         """Persist an AI message via message service."""
-        return await self.message_service.save_ai_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
+        return Message.model_validate(
+            await self.message_service.save_ai_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
         )
 
     @wide_event("run_stakeholder_query")

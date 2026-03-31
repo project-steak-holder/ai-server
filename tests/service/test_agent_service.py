@@ -111,11 +111,12 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
             return_value="We have mountain bikes and road bikes!",
         ) as mock_run,
     ):
-        # Mock message service to return a message
+        # Mock message service to return a message with valid fields
         mock_message = MagicMock()
         mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
         mock_message.content = "We have mountain bikes and road bikes!"
-        mock_message.role = "ai"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run the query
@@ -207,11 +208,12 @@ async def test_process_agent_query_stream_success(agent_service):
             return_value=mock_streaming_chunks(),
         ) as mock_run_stream,
     ):
-        # Mock message service to return a message
+        # Mock message service to return a message with valid fields
         mock_message = MagicMock()
         mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
         mock_message.content = "We have mountain bikes and road bikes!"
-        mock_message.role = "ai"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Collect streaming chunks
@@ -365,8 +367,12 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             persona if name == "persona" else project if name == "project" else None
         )
 
-        # Mock save_ai_message
+        # Mock save_ai_message with valid fields
         mock_message = MagicMock()
+        mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
+        mock_message.content = "test response"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run streaming
@@ -410,8 +416,12 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
             return_value=mock_streaming_chunks(),
         ),
     ):
-        # Mock save_ai_message to capture the full response
+        # Mock save_ai_message with valid fields
         mock_message = MagicMock()
+        mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
+        mock_message.content = "Hello there! How are you?"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run streaming
