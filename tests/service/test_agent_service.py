@@ -136,10 +136,22 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
         # Verify result is the response string
         assert result == "We have mountain bikes and road bikes!"
 
+        # Verify both messages were persisted after successful LLM response
+        agent_service.message_service.save_user_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+        agent_service.message_service.save_ai_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content="We have mountain bikes and road bikes!",
+        )
+
 
 @pytest.mark.anyio
 async def test_process_agent_query_handles_llm_error(agent_service):
-    """Test process_agent_query saves error message and re-raises on LLM error."""
+    """Test process_agent_query re-raises on LLM error without persisting any messages."""
 
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -167,12 +179,9 @@ async def test_process_agent_query_handles_llm_error(agent_service):
         mock_compact.assert_called_once()
         mock_run.assert_called_once()
 
-        # Verify error message was saved to the database before re-raising
-        agent_service.message_service.save_ai_message.assert_called_once_with(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content="I'm sorry, I encountered an error and was unable to respond.",
-        )
+        # Neither message should be saved — safe for client retries
+        agent_service.message_service.save_user_message.assert_not_called()
+        agent_service.message_service.save_ai_message.assert_not_called()
 
 
 @pytest.mark.anyio
@@ -302,12 +311,9 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         mock_compact.assert_called_once()
         mock_run_stream.assert_called_once()
 
-        # Verify error message was saved to the database
-        agent_service.message_service.save_ai_message.assert_called_once_with(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content="I'm sorry, I encountered an error and was unable to respond.",
-        )
+        # Neither message should be saved — safe for client retries
+        agent_service.message_service.save_user_message.assert_not_called()
+        agent_service.message_service.save_ai_message.assert_not_called()
 
 
 @pytest.mark.anyio
