@@ -311,9 +311,17 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         mock_compact.assert_called_once()
         mock_run_stream.assert_called_once()
 
-        # Neither message should be saved — safe for client retries
-        agent_service.message_service.save_user_message.assert_not_called()
-        agent_service.message_service.save_ai_message.assert_not_called()
+        # Verify user message was saved
+        agent_service.message_service.save_user_message.assert_called_once_with(
+            user_id=user_id, conversation_id=conversation_id, content=content
+        )
+
+        # Verify AI error message was saved
+        agent_service.message_service.save_ai_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content="I'm sorry, I encountered an error and was unable to respond.",
+        )
 
 
 @pytest.mark.anyio
