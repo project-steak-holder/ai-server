@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-
+from src.middlewares.events import tracked_stream
 from src.dependencies import WideEvent, CurrentUser, AgentService, RateLimit
 from src.schemas.ai import GenerateRequest
 
@@ -33,7 +33,7 @@ async def generate_stream(
     )
 
     return StreamingResponse(
-        content=streaming_response,
+        content=tracked_stream(streaming_response, wide_event),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )

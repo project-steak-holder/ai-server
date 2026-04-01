@@ -39,9 +39,10 @@ def make_request(
 
 class FakeWideEvent:
     def __init__(self, *_args, **_kwargs):
-        self.correlation_id = None
+        self.correlation_id: str | None = None
         self.added = []
         self.emitted = []
+        self.deferred = False
 
     def add_context(self, **kwargs):
         self.added.append(kwargs)

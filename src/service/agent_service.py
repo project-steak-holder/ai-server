@@ -14,7 +14,7 @@ from src.agents.stakeholder_agent import (
     run_stakeholder_query_stream as _run_stakeholder_query_stream,
 )
 from src.exceptions.llm_response_exception import LlmResponseException
-from src.middlewares.events import wide_event
+from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
@@ -40,8 +40,10 @@ class AgentService:
     def load_persona(self) -> Persona:
         """loads persona model from model service"""
         result = self.model_service.get_model("persona")
+
         if not isinstance(result, Persona):
             raise TypeError(f"Expected Persona, got {type(result).__name__}")
+        add_event_context(persona_name=result.name)
         return result
 
     def load_project(self) -> Project:
@@ -49,6 +51,7 @@ class AgentService:
         result = self.model_service.get_model("project")
         if not isinstance(result, Project):
             raise TypeError(f"Expected Project, got {type(result).__name__}")
+        add_event_context(project_name=result.project_name)
         return result
 
     async def load_history(self, user_id: str, conversation_id: str) -> list[Message]:
@@ -56,6 +59,7 @@ class AgentService:
         db_messages = await self.message_service.get_conversation_history(
             user_id=user_id, conversation_id=conversation_id
         )
+        add_event_context(history_length=len(db_messages))
         try:
             return [
                 Message.model_validate(msg, from_attributes=True) for msg in db_messages
@@ -76,20 +80,26 @@ class AgentService:
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
         """Persist the user's message via message service."""
-        return await self.message_service.save_user_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
+        return Message.model_validate(
+            await self.message_service.save_user_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
         )
 
     async def save_ai_message(
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
         """Persist an AI message via message service."""
-        return await self.message_service.save_ai_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
+        return Message.model_validate(
+            await self.message_service.save_ai_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
         )
 
     @wide_event("run_stakeholder_query")
@@ -183,15 +193,17 @@ class AgentService:
                 full_response += chunk
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
+            add_event_context(ai_response_length=len(full_response))
             await self.save_ai_message(
                 user_id=user_id, conversation_id=conversation_id, content=full_response
             )
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
-        except LlmResponseException:
+        except LlmResponseException as e:
             error_message = (
                 "I'm sorry, I encountered an error and was unable to respond."
             )
+            add_event_context(error_type="LlmResponseException", error_message=str(e))
             await self.save_ai_message(
                 user_id=user_id, conversation_id=conversation_id, content=error_message
             )
