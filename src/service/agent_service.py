@@ -146,25 +146,15 @@ class AgentService:
         persists both request and response messages via persistence service
         returns response to controller as dict
         """
+        history = await self.load_history(user_id, conversation_id)
+
+        response_content = await self.run_stakeholder_query(content, history)
+
         await self.save_user_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=content,
         )
-
-        history = await self.load_history(user_id, conversation_id)
-
-        try:
-            response_content = await self.run_stakeholder_query(content, history)
-        except LlmResponseException:
-            error_message = (
-                "I'm sorry, I encountered an error and was unable to respond."
-            )
-            await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=error_message
-            )
-            raise
-
         await self.save_ai_message(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -179,12 +169,12 @@ class AgentService:
     ) -> AsyncGenerator[str, None]:
         """Stream agent response maintaining architectural consistency."""
 
-        await self.save_user_message(
-            user_id=user_id, conversation_id=conversation_id, content=content
-        )
-
         history = await self.load_history(
             user_id=user_id, conversation_id=conversation_id
+        )
+
+        await self.save_user_message(
+            user_id=user_id, conversation_id=conversation_id, content=content
         )
 
         full_response = ""
@@ -194,17 +184,16 @@ class AgentService:
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
             add_event_context(ai_response_length=len(full_response))
-            await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=full_response
-            )
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
         except LlmResponseException as e:
-            error_message = (
+            full_response = (
                 "I'm sorry, I encountered an error and was unable to respond."
             )
             add_event_context(error_type="LlmResponseException", error_message=str(e))
+            yield f"data: {json.dumps({'error': full_response})}\n\n"
+
+        finally:
             await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=error_message
+                user_id=user_id, conversation_id=conversation_id, content=full_response
             )
-            yield f"data: {json.dumps({'error': error_message})}\n\n"
