@@ -115,6 +115,11 @@ All configuration is managed through a `.env` file in the project root. An examp
 | `AUTH_URL`             | Neon Auth base URL (used by Neon Auth SDK / Data API)                                                  | No       |
 | `PERSONA_FILE`         | Optional path to persona JSON context file (defaults to `data/persona.json`)                           | No       |
 | `PROJECT_FILE`         | Optional path to project JSON context file (defaults to `data/project.json`)                           | No       |
+| `AXIOM_INGEST_TOKEN`   | Axiom API token for ingesting wide event logs                                                          | No       |
+| `AXIOM_INGEST_DATASET` | Axiom dataset name for wide events (e.g. `ai-server-events-staging`)                                   | No       |
+| `ENVIRONMENT`          | Deployment environment name (e.g. `development`, `staging`, `production`). Included in every wide event | No       |
+| `SERVICE_VERSION`      | Service version string included in every wide event                                                     | No       |
+| `COMMIT_HASH`          | Git commit hash included in wide events (auto-detected from git if not set)                             | No       |
 
 ### Getting Your Configuration
 
@@ -212,6 +217,22 @@ async def generate_response(request: Request, payload: GenerateRequest):
 ```
 
 **The goal:** Anyone reading the log should understand the full business context, not just technical details.
+
+### The `add_event_context()` Helper
+
+Use `add_event_context()` to add context to the current request's wide event from anywhere in the call stack — no need to pass the `Request` object through every layer.
+
+```python
+from src.middlewares.events import add_event_context
+
+class MessageService:
+    async def save_user_message(self, user_id: str, conversation_id: str, content: str):
+        message = await self.repo.create(user_id, conversation_id, content)
+        add_event_context(user_id=user_id, conversation_id=conversation_id)
+        return message
+```
+
+It works via a `ContextVar` that the `EventMiddleware` sets at the start of each request. If called outside a request (e.g. in tests or background tasks), it's a safe no-op.
 
 ### The `@wide_event` Decorator
 
