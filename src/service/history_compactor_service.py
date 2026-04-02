@@ -6,7 +6,7 @@ Project StakeHolder
 """
 
 import os
-
+import time
 from pydantic_ai import (
     Agent,
     ModelRequest,
@@ -18,7 +18,7 @@ from pydantic_ai import (
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from src.middlewares.events import wide_event
+from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message, MessageType
 
 
@@ -77,8 +77,14 @@ class HistoryCompactorService:
         if len(messages) >= message_cutoff:
             recent_messages = converted_messages[-message_cutoff:]
             old_messages = converted_messages[:-message_cutoff]
-
+            start = time.time()
             # Call summarize_agent with list of ModelMessages
             summary = await summarize_agent.run(message_history=old_messages)
+            end = time.time()
+            add_event_context(
+                summary_latency_ms=int((end - start) * 1000),
+                original_message_count=len(messages),
+                summary_message_count=len(summary.new_messages()),
+            )
             return summary.new_messages() + recent_messages
         return converted_messages

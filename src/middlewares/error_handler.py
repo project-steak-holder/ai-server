@@ -3,6 +3,9 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from src.exceptions.base_exceptions import AppException, ErrorResponse
+import logging
+
+logger = logging.getLogger("global_exception_handler")
 
 
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -61,8 +64,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         )
         wide_event.emit(status_code, "error", exc)
     else:
-        # TODO: Fallback log the error if wide_event is not available. This should never happen.
-        print(
+        logger.error(
             f"Error occurred but no wide_event available: {error_code} - {error_message}"
         )
 

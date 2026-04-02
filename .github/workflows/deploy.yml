@@ -51,6 +51,12 @@ jobs:
           region: ${{ vars.GCP_REGION }}
           image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO }}/ai-server:${{ github.sha }}
           flags: '--port=8000 --no-traffic --tag=canary'
+          env_vars: |
+            COMMIT_HASH=${{ github.sha }}
+            SERVICE_VERSION=${{ github.sha }}
+            ENVIRONMENT=production
+            AXIOM_INGEST_TOKEN=${{ secrets.AXIOM_INGEST_PROD_KEY }}
+            AXIOM_INGEST_DATASET=ai-server-events
           secrets: |
             DATABASE_URL=PSYCOPG_DATABASE_URL:latest
             AI_PROVIDER_API_KEY=AI_PROVIDER_API_KEY:latest

@@ -3,11 +3,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from src.database import engine
-from src.controllers.ai_controller import router as ai_router
 from src.controllers.ai_controller_v2 import router as ai_router_v2
 from src.middlewares.correlation_id import CorrelationIDMiddleware
 from src.middlewares.error_handler import global_exception_handler
 from src.middlewares.events import EventMiddleware
+from src.middlewares.logging import setup_logger
 
 # Reduce uvicorn and starlette errors logging levels to avoid cluttering logs
 logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
@@ -24,10 +24,10 @@ async def lifespan(_: FastAPI):
 
 # Setup FastAPI app and include middleware and exception handler
 app = FastAPI(lifespan=lifespan)
+setup_logger()
 app.add_exception_handler(Exception, global_exception_handler)
 app.add_middleware(CorrelationIDMiddleware)
 app.add_middleware(EventMiddleware)
-app.include_router(router=ai_router)
 app.include_router(router=ai_router_v2)
 
 

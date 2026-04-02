@@ -12,7 +12,7 @@ from pydantic_ai import ModelMessage
 from pydantic import ValidationError
 
 from src.exceptions.llm_response_exception import LlmResponseException
-from src.middlewares.events import wide_event
+from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
@@ -48,8 +48,10 @@ class AgentService:
     def load_persona(self) -> Persona:
         """loads persona model from model service"""
         result = self.model_service.get_model("persona")
+
         if not isinstance(result, Persona):
             raise TypeError(f"Expected Persona, got {type(result).__name__}")
+        add_event_context(persona_name=result.name)
         return result
 
     def load_project(self) -> Project:
@@ -57,6 +59,7 @@ class AgentService:
         result = self.model_service.get_model("project")
         if not isinstance(result, Project):
             raise TypeError(f"Expected Project, got {type(result).__name__}")
+        add_event_context(project_name=result.project_name)
         return result
 
     def load_sentiment_scale(self):
@@ -85,6 +88,7 @@ class AgentService:
         db_messages = await self.message_service.get_conversation_history(
             user_id=user_id, conversation_id=conversation_id
         )
+        add_event_context(history_length=len(db_messages))
         try:
             return [
                 Message.model_validate(msg, from_attributes=True) for msg in db_messages
@@ -104,20 +108,26 @@ class AgentService:
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
         """Persist the user's message via message service."""
-        return await self.message_service.save_user_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
+        return Message.model_validate(
+            await self.message_service.save_user_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
         )
 
     async def save_ai_message(
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
         """Persist an AI message via message service."""
-        return await self.message_service.save_ai_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
+        return Message.model_validate(
+            await self.message_service.save_ai_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
         )
 
     @wide_event("run_stakeholder_query")
@@ -174,13 +184,14 @@ class AgentService:
         persists both request and response messages via persistence service
         returns response to controller as dict
         """
+
+        history = await self.load_history(user_id, conversation_id)
+
         await self.save_user_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=content,
         )
-
-        history = await self.load_history(user_id, conversation_id)
 
         persona = self.load_persona()
         persona_with_sentiment = await get_persona_with_sentiment(
@@ -249,6 +260,10 @@ class AgentService:
     ) -> AsyncGenerator[str, None]:
         """Stream agent response maintaining architectural consistency."""
 
+        history = await self.load_history(
+            user_id=user_id, conversation_id=conversation_id
+        )
+
         await self.save_user_message(
             user_id=user_id, conversation_id=conversation_id, content=content
         )
@@ -261,7 +276,6 @@ class AgentService:
         persona_with_sentiment = await get_persona_with_sentiment(
             persona, self.sentiment_service, conversation_id
         )
-
         full_response = ""
         try:
             async for chunk in self.run_stakeholder_query_stream(
@@ -270,6 +284,7 @@ class AgentService:
                 full_response += chunk
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
+            add_event_context(ai_response_length=len(full_response))
             # Try to parse the full response as AgentResponse
             try:
                 response_obj = AgentResponse.model_validate(json.loads(full_response))
@@ -318,11 +333,14 @@ class AgentService:
             )
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
-        except LlmResponseException:
-            error_message = (
+        except LlmResponseException as e:
+            full_response = (
                 "I'm sorry, I encountered an error and was unable to respond."
             )
+            add_event_context(error_type="LlmResponseException", error_message=str(e))
+            yield f"data: {json.dumps({'error': full_response})}\n\n"
+
+        finally:
             await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=error_message
+                user_id=user_id, conversation_id=conversation_id, content=full_response
             )
-            yield f"data: {json.dumps({'error': error_message})}\n\n"

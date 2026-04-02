@@ -122,11 +122,12 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
             return_value="We have mountain bikes and road bikes!",
         ) as mock_run,
     ):
-        # Mock message service to return a message
+        # Mock message service to return a message with valid fields
         mock_message = MagicMock()
         mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
         mock_message.content = "We have mountain bikes and road bikes!"
-        mock_message.role = "ai"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run the query
@@ -146,10 +147,22 @@ async def test_process_agent_query_with_pydantic_ai(agent_service):
         # Verify result is the response string
         assert result == "We have mountain bikes and road bikes!"
 
+        # Verify both messages were persisted after successful LLM response
+        agent_service.message_service.save_user_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+        agent_service.message_service.save_ai_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content="We have mountain bikes and road bikes!",
+        )
+
 
 @pytest.mark.anyio
 async def test_process_agent_query_handles_llm_error(agent_service):
-    """Test process_agent_query saves error message and re-raises on LLM error."""
+    """Test process_agent_query re-raises on LLM error without persisting any messages."""
 
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -176,6 +189,10 @@ async def test_process_agent_query_handles_llm_error(agent_service):
 
         mock_compact.assert_called_once()
         mock_run.assert_called_once()
+
+        # Neither message should be saved — safe for client retries
+        agent_service.message_service.save_user_message.assert_not_called()
+        agent_service.message_service.save_ai_message.assert_not_called()
 
 
 @pytest.mark.anyio
@@ -211,11 +228,12 @@ async def test_process_agent_query_stream_success(agent_service):
             return_value=mock_streaming_chunks(),
         ) as mock_run_stream,
     ):
-        # Mock message service to return a message
+        # Mock message service to return a message with valid fields
         mock_message = MagicMock()
         mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
         mock_message.content = "We have mountain bikes and road bikes!"
-        mock_message.role = "ai"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Collect streaming chunks
@@ -304,7 +322,12 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         mock_compact.assert_called_once()
         mock_run_stream.assert_called_once()
 
-        # Verify error message was saved to the database
+        # Verify user message was saved
+        agent_service.message_service.save_user_message.assert_called_once_with(
+            user_id=user_id, conversation_id=conversation_id, content=content
+        )
+
+        # Verify AI error message was saved
         agent_service.message_service.save_ai_message.assert_called_once_with(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -396,8 +419,12 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             else None
         )
 
-        # Mock save_ai_message
+        # Mock save_ai_message with valid fields
         mock_message = MagicMock()
+        mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
+        mock_message.content = "test response"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run streaming
@@ -441,8 +468,12 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
             return_value=mock_streaming_chunks(),
         ),
     ):
-        # Mock save_ai_message to capture the full response
+        # Mock save_ai_message with valid fields
         mock_message = MagicMock()
+        mock_message.id = uuid.uuid4()
+        mock_message.conversation_id = uuid.UUID(conversation_id)
+        mock_message.content = "Hello there! How are you?"
+        mock_message.type = MessageType.AI
         agent_service.message_service.save_ai_message.return_value = mock_message
 
         # Run streaming
