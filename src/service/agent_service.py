@@ -187,12 +187,6 @@ class AgentService:
 
         history = await self.load_history(user_id, conversation_id)
 
-        await self.save_user_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
-        )
-
         persona = self.load_persona()
         persona_with_sentiment = await get_persona_with_sentiment(
             persona, self.sentiment_service, conversation_id
@@ -245,7 +239,12 @@ class AgentService:
             conversation_id, updated_sentiment
         )
 
-        # Save only the content to the message history
+        await self.save_user_message(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+
         await self.save_ai_message(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -268,10 +267,6 @@ class AgentService:
             user_id=user_id, conversation_id=conversation_id, content=content
         )
 
-        history = await self.load_history(
-            user_id=user_id, conversation_id=conversation_id
-        )
-
         persona = self.load_persona()
         persona_with_sentiment = await get_persona_with_sentiment(
             persona, self.sentiment_service, conversation_id
@@ -285,6 +280,7 @@ class AgentService:
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
             add_event_context(ai_response_length=len(full_response))
+
             # Try to parse the full response as AgentResponse
             try:
                 response_obj = AgentResponse.model_validate(json.loads(full_response))
@@ -324,13 +320,6 @@ class AgentService:
                 conversation_id, updated_sentiment
             )
 
-            # Save only the content to the message history
-            content_to_save = response_obj.content if response_obj else full_response
-            await self.save_ai_message(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                content=content_to_save,
-            )
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
         except LlmResponseException as e:
