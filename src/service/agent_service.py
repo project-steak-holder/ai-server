@@ -7,7 +7,7 @@ persistence, persona, project context, and LLM interaction for a project stakeho
 import json
 import re
 from decimal import Decimal, InvalidOperation
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from pydantic_ai import ModelMessage
 from pydantic import ValidationError
 
@@ -42,8 +42,8 @@ class AgentService:
         self.model_service: ModelService = model_service
         self.message_service: MessageService = message_service
         self.sentiment_service = sentiment_service
-        self.request: str | None = None
-        self.conversation_id: str | None = None
+        self.request: Optional[str] = None
+        self.conversation_id: Optional[str] = None
 
     def load_persona(self) -> Persona:
         """loads persona model from model service"""
@@ -257,11 +257,18 @@ class AgentService:
     async def process_agent_query_stream(
         self, user_id: str, conversation_id: str, content: str
     ) -> AsyncGenerator[str, None]:
-        """Stream agent response maintaining architectural consistency."""
-
-        history = await self.load_history(
-            user_id=user_id, conversation_id=conversation_id
-        )
+        """Stream agent response maintaining architectural consistency, with robust error handling for history loading."""
+        print("[DEBUG] Entered process_agent_query_stream")
+        yield "data: test\n\n"
+        try:
+            history = await self.load_history(
+                user_id=user_id, conversation_id=conversation_id
+            )
+        except Exception as e:
+            print(f"[DEBUG] History load failed: {e}")
+            add_event_context(error_type="HistoryLoadException", error_message=str(e))
+            yield f"data: {json.dumps({'error': 'Failed to load conversation history', 'details': str(e)})}\n\n"
+            return
 
         await self.save_user_message(
             user_id=user_id, conversation_id=conversation_id, content=content
@@ -276,6 +283,7 @@ class AgentService:
             async for chunk in self.run_stakeholder_query_stream(
                 content, history, persona_with_sentiment
             ):
+                print(f"[DEBUG] Yielding chunk: {chunk}")
                 full_response += chunk
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
@@ -320,13 +328,21 @@ class AgentService:
                 conversation_id, updated_sentiment
             )
 
+            print("[DEBUG] Yielding complete message")
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
         except LlmResponseException as e:
             full_response = (
                 "I'm sorry, I encountered an error and was unable to respond."
             )
+            print(f"[DEBUG] LlmResponseException: {e}")
             add_event_context(error_type="LlmResponseException", error_message=str(e))
+            yield f"data: {json.dumps({'error': full_response})}\n\n"
+
+        except Exception as e:
+            full_response = "I'm sorry, I encountered an unexpected error and was unable to respond."
+            print(f"[DEBUG] Unexpected exception: {e}")
+            add_event_context(error_type="UnexpectedException", error_message=str(e))
             yield f"data: {json.dumps({'error': full_response})}\n\n"
 
         finally:

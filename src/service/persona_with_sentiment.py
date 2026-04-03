@@ -1,7 +1,10 @@
 from copy import deepcopy
+
+from src.middlewares.events import wide_event
 from src.schemas.persona_model import Persona
 
 
+@wide_event("get_persona_with_sentiment")
 async def get_persona_with_sentiment(
     persona: Persona, sentiment_service, conversation_id: str
 ) -> Persona:
