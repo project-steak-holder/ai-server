@@ -177,6 +177,7 @@ def agent_service(mock_message_service):
     )
     listening_cues = ListeningCues(
         purpose="backend LLM listens for these in stakeholder input",
+        outcome="Guide agent response tone and feedback.",  # Add required field
         cues={
             "positive": [
                 ListeningCue(cue="values stakeholder time", score=0.5),

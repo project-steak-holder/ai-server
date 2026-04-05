@@ -1,12 +1,12 @@
 """
-Unit tests for SentimentDataService.
+Unit tests for SentimentService.
 """
 
 import pytest
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
-from src.service.sentiment_service import SentimentDataService
+from src.service.sentiment_service import SentimentService
 from src.models.sentiment import Sentiment
 
 
@@ -20,7 +20,7 @@ def mock_sentiment_repository():
 
 @pytest.fixture
 def sentiment_data_service(mock_sentiment_repository):
-    return SentimentDataService(sentiment_repository=mock_sentiment_repository)
+    return SentimentService(sentiment_repository=mock_sentiment_repository)
 
 
 @pytest.mark.anyio

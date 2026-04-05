@@ -258,17 +258,10 @@ class AgentService:
         self, user_id: str, conversation_id: str, content: str
     ) -> AsyncGenerator[str, None]:
         """Stream agent response maintaining architectural consistency, with robust error handling for history loading."""
-        print("[DEBUG] Entered process_agent_query_stream")
-        yield "data: test\n\n"
-        try:
-            history = await self.load_history(
-                user_id=user_id, conversation_id=conversation_id
-            )
-        except Exception as e:
-            print(f"[DEBUG] History load failed: {e}")
-            add_event_context(error_type="HistoryLoadException", error_message=str(e))
-            yield f"data: {json.dumps({'error': 'Failed to load conversation history', 'details': str(e)})}\n\n"
-            return
+
+        history = await self.load_history(
+            user_id=user_id, conversation_id=conversation_id
+        )
 
         await self.save_user_message(
             user_id=user_id, conversation_id=conversation_id, content=content

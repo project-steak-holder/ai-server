@@ -1,7 +1,7 @@
 {
     "purpose": "backend LLM listens for these in stakeholder input",
     "outcome": "LLM will tally heard cues into sentiment_delta",
-    "listening_cues": {
+    "cues": {
         "positive": [
             {"cue": "values stakeholder time", "score": 0.5},
             {"cue": "asks permission", "score": 0.5},

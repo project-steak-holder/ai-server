@@ -9,7 +9,7 @@ from src.service.model_service import ModelService as ModelServiceClass
 from functools import lru_cache
 from src.service.message_service import MessageService as MessageServiceClass
 from src.service.sentiment_service import (
-    SentimentDataService as SentimentDataServiceClass,
+    SentimentService as SentimentServiceClass,
 )
 from src.dependencies.database import get_message_service, get_sentiment_service
 
@@ -23,9 +23,7 @@ def get_model_service() -> ModelServiceClass:
 def get_agent_service(
     model_service: Annotated[ModelServiceClass, Depends(get_model_service)],
     message_service: Annotated[MessageServiceClass, Depends(get_message_service)],
-    sentiment_service: Annotated[
-        SentimentDataServiceClass, Depends(get_sentiment_service)
-    ],
+    sentiment_service: Annotated[SentimentServiceClass, Depends(get_sentiment_service)],
 ) -> AgentServiceClass:
     """Get AgentService instance with injected dependencies."""
     return AgentServiceClass(
@@ -35,10 +33,7 @@ def get_agent_service(
     )
 
 
-get_sentiment_data_service = Depends(get_sentiment_service)
-
-
 # Type aliases for dependency injection
 ModelService = Annotated[ModelServiceClass, Depends(get_model_service)]
 AgentService = Annotated[AgentServiceClass, Depends(get_agent_service)]
-SentimentDataService = Annotated[SentimentDataServiceClass, get_sentiment_data_service]
+SentimentDataService = Annotated[SentimentServiceClass, Depends(get_sentiment_service)]

@@ -231,7 +231,9 @@ def test_create_stakeholder_agent_builds_prompt(
         purpose="test", scale=[SentimentScaleEntry(label="neutral", score=0)]
     )
     dummy_listening_cues = ListeningCues(
-        purpose="test", cues={"positive": [ListeningCue(cue="good", score=1.0)]}
+        purpose="test",
+        outcome="test outcome",
+        cues={"positive": [ListeningCue(cue="good", score=1.0)]},
     )
     dummy_instructions = InstructionsModel(
         purpose="test",
@@ -467,7 +469,9 @@ def dummy_sentiment_scale():
 
 def dummy_listening_cues():
     return ListeningCues(
-        purpose="test", cues={"cue1": [ListeningCue(cue="desc1", score=1.0)]}
+        purpose="test",
+        outcome="test outcome",
+        cues={"cue1": [ListeningCue(cue="desc1", score=1.0)]},
     )
 
 

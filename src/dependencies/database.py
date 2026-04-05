@@ -12,7 +12,7 @@ from src.repository.sentiment_repository import (
     SentimentRepository as SentimentRepositoryClass,
 )
 from src.service.sentiment_service import (
-    SentimentDataService as SentimentDataServiceClass,
+    SentimentService as SentimentServiceClass,
 )
 
 
@@ -35,9 +35,9 @@ def get_message_service(
 
 def get_sentiment_service(
     repository: Annotated[SentimentRepositoryClass, Depends(get_sentiment_repository)],
-) -> SentimentDataServiceClass:
-    """Get SentimentDataService instance with injected repository."""
-    return SentimentDataServiceClass(repository)
+) -> SentimentServiceClass:
+    """Get SentimentService instance with injected repository."""
+    return SentimentServiceClass(repository)
 
 
 # Type aliases for dependency injection
@@ -46,6 +46,4 @@ MessageService = Annotated[MessageServiceClass, Depends(get_message_service)]
 SentimentRepository = Annotated[
     SentimentRepositoryClass, Depends(get_sentiment_repository)
 ]
-SentimentDataService = Annotated[
-    SentimentDataServiceClass, Depends(get_sentiment_service)
-]
+SentimentService = Annotated[SentimentServiceClass, Depends(get_sentiment_service)]

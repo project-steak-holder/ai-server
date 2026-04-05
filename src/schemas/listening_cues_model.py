@@ -17,4 +17,5 @@ class ListeningCue(BaseModel):
 
 class ListeningCues(BaseModel):
     purpose: str
+    outcome: str
     cues: Dict[str, List[ListeningCue]]  # keys: 'positive', 'negative'

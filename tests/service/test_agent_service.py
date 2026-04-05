@@ -400,6 +400,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         )
         dummy_listening_cues = ListeningCues(
             purpose="test",
+            outcome="test outcome",
             cues={
                 "cue1": [ListeningCue(cue="desc1", score=1.0)],
                 "cue2": [ListeningCue(cue="desc2", score=1.0)],
