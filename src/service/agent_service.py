@@ -6,7 +6,6 @@ persistence, persona, project context, and LLM interaction for a project stakeho
 
 import json
 import re
-from decimal import Decimal, InvalidOperation
 from typing import AsyncGenerator, Optional
 from pydantic_ai import ModelMessage
 from pydantic import ValidationError
@@ -22,9 +21,7 @@ from src.schemas.instructions_model import InstructionsModel
 from src.service.history_compactor_service import HistoryCompactorService
 from src.service.model_service import ModelService
 from src.service.message_service import MessageService
-from src.service.persona_with_sentiment import get_persona_with_sentiment
 from src.agents.stakeholder_agent import (
-    run_stakeholder_query as _run_stakeholder_query,
     run_stakeholder_query_stream as _run_stakeholder_query_stream,
     AgentResponse,
 )
@@ -130,28 +127,6 @@ class AgentService:
             from_attributes=True,
         )
 
-    @wide_event("run_stakeholder_query")
-    async def run_stakeholder_query(
-        self, content: str, history: list[Message], persona: Persona
-    ):
-        """Load context, compact history, and run the agent. Returns AgentResponse object."""
-        project = self.load_project()
-        sentiment_scale = self.load_sentiment_scale()
-        listening_cues = self.load_listening_cues()
-        instructions = self.load_instructions()
-        compacted_history: list[
-            ModelMessage
-        ] = await HistoryCompactorService.summarize_old_messages(history)
-        return await _run_stakeholder_query(
-            message=content,
-            persona=persona,
-            project=project,
-            history=compacted_history,
-            sentiment_scale=sentiment_scale,
-            listening_cues=listening_cues,
-            instructions=instructions,
-        )
-
     async def run_stakeholder_query_stream(
         self, content: str, history: list[Message], persona: Persona
     ) -> AsyncGenerator[str, None]:
@@ -174,85 +149,6 @@ class AgentService:
         ):
             yield chunk
 
-    @wide_event("process_agent_query")
-    async def process_agent_query(
-        self, user_id: str, conversation_id: str, content: str
-    ) -> str:
-        """Main Orchestrator Method
-        receives request payload from controller as dict
-        assembles context from persona, project and persistence(history) service
-        persists both request and response messages via persistence service
-        returns response to controller as dict
-        """
-
-        history = await self.load_history(user_id, conversation_id)
-
-        persona = self.load_persona()
-        persona_with_sentiment = await get_persona_with_sentiment(
-            persona, self.sentiment_service, conversation_id
-        )
-
-        agent_response = await self.run_stakeholder_query(
-            content, history, persona_with_sentiment
-        )
-
-        # If agent_response is a string, treat as content only
-        if isinstance(agent_response, str):
-            content_to_save = agent_response
-            sentiment_delta = None
-        else:
-            content_to_save = getattr(agent_response, "content", str(agent_response))
-            sentiment_delta = getattr(agent_response, "sentiment", None)
-
-        # Strip <think> tags from content before saving (robust, handles multiple tags and whitespace)
-        content_to_save = re.sub(
-            r"<think>.*?</think>", "", content_to_save, flags=re.DOTALL | re.IGNORECASE
-        )
-        content_to_save = re.sub(r"\s+", " ", content_to_save).strip()
-
-        # Retrieve current sentiment from DB
-        sentiment_obj = await self.sentiment_service.get_sentiment(conversation_id)
-        current_sentiment = (
-            Decimal(str(sentiment_obj.sentiment))
-            if sentiment_obj and sentiment_obj.sentiment is not None
-            else Decimal("0.00")
-        )
-
-        # Validate and parse delta
-        try:
-            delta = (
-                Decimal(str(sentiment_delta))
-                if sentiment_delta is not None
-                else Decimal("0.00")
-            )
-        except (InvalidOperation, ValueError):
-            delta = Decimal("0.00")
-
-        # Compute updated sentiment and clamp
-        updated_sentiment = current_sentiment + delta
-        updated_sentiment = max(
-            Decimal("-10.00"), min(Decimal("10.00"), updated_sentiment)
-        )
-
-        # Persist updated sentiment
-        await self.sentiment_service.update_sentiment(
-            conversation_id, updated_sentiment
-        )
-
-        await self.save_user_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
-        )
-
-        await self.save_ai_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content_to_save,
-        )
-
-        return content_to_save
-
     @wide_event("process_agent_query_stream")
     async def process_agent_query_stream(
         self, user_id: str, conversation_id: str, content: str
@@ -267,16 +163,23 @@ class AgentService:
             user_id=user_id, conversation_id=conversation_id, content=content
         )
 
+        # Get persona copy with sentiment injected
         persona = self.load_persona()
-        persona_with_sentiment = await get_persona_with_sentiment(
-            persona, self.sentiment_service, conversation_id
+        persona_with_sentiment = (
+            await self.sentiment_service.get_persona_w_current_sentiment(
+                persona, conversation_id
+            )
         )
+        # get current sentiment value for update with delta later
+        current_sentiment = await self.sentiment_service.get_current_sentiment_value(
+            conversation_id
+        )
+
         full_response = ""
         try:
             async for chunk in self.run_stakeholder_query_stream(
                 content, history, persona_with_sentiment
             ):
-                print(f"[DEBUG] Yielding chunk: {chunk}")
                 full_response += chunk
                 yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
 
@@ -288,40 +191,14 @@ class AgentService:
             except (json.JSONDecodeError, ValidationError, TypeError, ValueError):
                 response_obj = None
 
-            # Retrieve current sentiment from DB
-            sentiment_obj = await self.sentiment_service.get_sentiment(conversation_id)
-            current_sentiment = (
-                Decimal(str(sentiment_obj.sentiment))
-                if sentiment_obj and sentiment_obj.sentiment is not None
-                else Decimal("0.00")
-            )
-
-            # Validate and parse delta
+            # get delta from LLM response
             sentiment_delta = (
                 getattr(response_obj, "sentiment", None) if response_obj else None
             )
-            try:
-                delta = (
-                    Decimal(str(sentiment_delta))
-                    if sentiment_delta is not None
-                    else Decimal("0.00")
-                )
-            except (InvalidOperation, ValueError):
-                delta = Decimal("0.00")
-                # Optionally log error here
-
-            # Compute updated sentiment and clamp
-            updated_sentiment = current_sentiment + delta
-            updated_sentiment = max(
-                Decimal("-10.00"), min(Decimal("10.00"), updated_sentiment)
+            # apply delta and persist using SentimentService
+            await self.sentiment_service.apply_delta(
+                conversation_id, current_sentiment, sentiment_delta
             )
-
-            # Persist updated sentiment
-            await self.sentiment_service.update_sentiment(
-                conversation_id, updated_sentiment
-            )
-
-            print("[DEBUG] Yielding complete message")
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
         except LlmResponseException as e:
@@ -339,6 +216,13 @@ class AgentService:
             yield f"data: {json.dumps({'error': full_response})}\n\n"
 
         finally:
+            # Strip <think>...</think> tags from the accumulated response before saving
+            if full_response:
+                # Remove all <think>...</think> tags (non-greedy)
+                full_response = re.sub(
+                    r"<think>.*?</think>", "", full_response, flags=re.DOTALL
+                )
+                full_response = full_response.strip()
             await self.save_ai_message(
                 user_id=user_id, conversation_id=conversation_id, content=full_response
             )

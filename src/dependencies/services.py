@@ -36,4 +36,4 @@ def get_agent_service(
 # Type aliases for dependency injection
 ModelService = Annotated[ModelServiceClass, Depends(get_model_service)]
 AgentService = Annotated[AgentServiceClass, Depends(get_agent_service)]
-SentimentDataService = Annotated[SentimentServiceClass, Depends(get_sentiment_service)]
+SentimentService = Annotated[SentimentServiceClass, Depends(get_sentiment_service)]

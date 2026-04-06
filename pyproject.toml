@@ -13,7 +13,8 @@ dependencies = [
     "sqlalchemy>=2.0.48",
     "PyJWT>=2.11.0",
     "cryptography>=46.0.6",
-    "axiom-py>=0.10.0"
+    "axiom-py>=0.10.0",
+    "greenlet==3.3.2",
 ]
 
 [dependency-groups]
@@ -24,7 +25,6 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.8",
-    "types-jmespath",
 ]
 
 [tool.mypy]

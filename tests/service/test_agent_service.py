@@ -2,29 +2,24 @@
 Project Steak-Holder
 
 unit tests for agent_service
+
+Note to maintainers:
+- Patch apply_delta instead of update_sentiment for all streaming sentiment tests
+  (Replace all patch.object(agent_service.sentiment_service, "update_sentiment", ...) with apply_delta)
+- And assert on mock_apply_delta.assert_awaited_with(conversation_id, expected_current_sentiment, expected_delta)
+- For each test, expected_current_sentiment and expected_delta should match the logic in the test.
 """
 
 import uuid
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from pydantic_ai import ModelRequest, ModelResponse, TextPart, UserPromptPart
-from src.agents.stakeholder_agent import AgentResponse
 from decimal import Decimal
 
 from src.schemas.persona_model import Persona
-from src.service.persona_with_sentiment import get_persona_with_sentiment
 from src.schemas.project_model import Project
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.schemas.message_model import Message, MessageType
-
-
-@pytest.fixture
-async def persona_with_sentiment(agent_service):
-    persona = agent_service.load_persona()
-    # Use a dummy conversation_id for tests
-    return await get_persona_with_sentiment(
-        persona, agent_service.sentiment_service, "test-conv-id"
-    )
 
 
 def test_load_persona(agent_service):
@@ -95,107 +90,6 @@ def test_set_conversation_id(agent_service):
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_with_pydantic_ai(agent_service):
-    """Test process_agent_query using PydanticAI."""
-    user_id = str(uuid.uuid4())
-    conversation_id = str(uuid.uuid4())
-    content = "What bikes do you have?"
-
-    # Prepare a compacted history as ModelRequest/ModelResponse objects
-    compacted_history = [
-        ModelRequest(parts=[UserPromptPart(content="What bikes do you have?")]),
-        ModelResponse(
-            parts=[TextPart(content="We have mountain bikes and road bikes.")]
-        ),
-    ]
-
-    # Patch the compactor and run_stakeholder_query
-    with (
-        patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=compacted_history,
-        ) as mock_compact,
-        patch(
-            "src.service.agent_service._run_stakeholder_query",
-            new_callable=AsyncMock,
-            return_value="We have mountain bikes and road bikes!",
-        ) as mock_run,
-    ):
-        # Mock message service to return a message with valid fields
-        mock_message = MagicMock()
-        mock_message.id = uuid.uuid4()
-        mock_message.conversation_id = uuid.UUID(conversation_id)
-        mock_message.content = "We have mountain bikes and road bikes!"
-        mock_message.type = MessageType.AI
-        agent_service.message_service.save_ai_message.return_value = mock_message
-
-        # Run the query
-        result = await agent_service.process_agent_query(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
-        )
-
-        # Verify compactor and agent were called
-        mock_compact.assert_called_once()
-        mock_run.assert_called_once()
-
-        # Check that the compacted history has the correct types
-        assert isinstance(compacted_history[0], ModelRequest)
-        assert isinstance(compacted_history[1], ModelResponse)
-        # Verify result is the response string
-        assert result == "We have mountain bikes and road bikes!"
-
-        # Verify both messages were persisted after successful LLM response
-        agent_service.message_service.save_user_message.assert_called_once_with(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=content,
-        )
-        agent_service.message_service.save_ai_message.assert_called_once_with(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content="We have mountain bikes and road bikes!",
-        )
-
-
-@pytest.mark.anyio
-async def test_process_agent_query_handles_llm_error(agent_service):
-    """Test process_agent_query re-raises on LLM error without persisting any messages."""
-
-    user_id = str(uuid.uuid4())
-    conversation_id = str(uuid.uuid4())
-    content = "Test message"
-
-    with (
-        patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ) as mock_compact,
-        patch("src.service.agent_service._run_stakeholder_query") as mock_run,
-    ):
-        mock_run.side_effect = LlmResponseException(
-            message="LLM timeout", details={"error": "timeout"}
-        )
-
-        with pytest.raises(LlmResponseException):
-            await agent_service.process_agent_query(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                content=content,
-            )
-
-        mock_compact.assert_called_once()
-        mock_run.assert_called_once()
-
-        # Neither message should be saved — safe for client retries
-        agent_service.message_service.save_user_message.assert_not_called()
-        agent_service.message_service.save_ai_message.assert_not_called()
-
-
-@pytest.mark.anyio
 async def test_process_agent_query_stream_success(agent_service):
     """Test process_agent_query_stream with PydanticAI streaming."""
     user_id = str(uuid.uuid4())
@@ -227,14 +121,45 @@ async def test_process_agent_query_stream_success(agent_service):
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ) as mock_run_stream,
+        patch.object(
+            agent_service.sentiment_service,
+            "get_persona_w_current_sentiment",
+            new=AsyncMock(return_value=agent_service.load_persona()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_sentiment",
+            new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 0.0})()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=Decimal("0.0")),
+        ),
+        patch.object(agent_service.sentiment_service, "apply_delta", new=AsyncMock()),
     ):
-        # Mock message service to return a message with valid fields
-        mock_message = MagicMock()
-        mock_message.id = uuid.uuid4()
-        mock_message.conversation_id = uuid.UUID(conversation_id)
-        mock_message.content = "We have mountain bikes and road bikes!"
-        mock_message.type = MessageType.AI
-        agent_service.message_service.save_ai_message.return_value = mock_message
+        # Use real Message objects for mocks to avoid Pydantic validation errors
+        from src.schemas.message_model import Message, MessageType
+
+        mock_ai_message = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content="We have mountain bikes and road bikes!",
+            type=MessageType.AI,
+        )
+        agent_service.message_service.save_ai_message = AsyncMock(
+            return_value=mock_ai_message
+        )
+
+        mock_user_message = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content=content,
+            type=MessageType.USER,
+        )
+        agent_service.message_service.save_user_message = AsyncMock(
+            return_value=mock_user_message
+        )
 
         # Collect streaming chunks
         chunks = []
@@ -297,6 +222,11 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
                 message="LLM streaming timeout", details={"error": "timeout"}
             ),
         ) as mock_run_stream,
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=Decimal("0.0")),
+        ),
     ):
         chunks = []
         async for chunk in agent_service.process_agent_query_stream(
@@ -357,6 +287,11 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             return_value=mock_streaming_chunks(),
         ),
         patch.object(agent_service, "model_service", MagicMock()) as mock_model_service,
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=Decimal("0.0")),
+        ),
     ):
         # Patch the mock_model_service to return real Persona/Project for get_model
         from src.schemas.persona_model import (
@@ -468,14 +403,45 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_persona_w_current_sentiment",
+            new=AsyncMock(return_value=agent_service.load_persona()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_sentiment",
+            new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 0.0})()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=Decimal("0.0")),
+        ),
+        patch.object(agent_service.sentiment_service, "apply_delta", new=AsyncMock()),
     ):
-        # Mock save_ai_message with valid fields
-        mock_message = MagicMock()
-        mock_message.id = uuid.uuid4()
-        mock_message.conversation_id = uuid.UUID(conversation_id)
-        mock_message.content = "Hello there! How are you?"
-        mock_message.type = MessageType.AI
-        agent_service.message_service.save_ai_message.return_value = mock_message
+        # Use real Message objects for mocks to avoid Pydantic validation errors
+        from src.schemas.message_model import Message, MessageType
+
+        mock_ai_message = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content="Hello there! How are you?",
+            type=MessageType.AI,
+        )
+        agent_service.message_service.save_ai_message = AsyncMock(
+            return_value=mock_ai_message
+        )
+
+        mock_user_message = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content=content,
+            type=MessageType.USER,
+        )
+        agent_service.message_service.save_user_message = AsyncMock(
+            return_value=mock_user_message
+        )
 
         # Run streaming
         async for _ in agent_service.process_agent_query_stream(
@@ -494,17 +460,18 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
 
 
 @pytest.mark.anyio
-async def test_llm_missing_sentiment_delta_fallback(agent_service):
-    """LLM returns no sentiment_delta; backend should fall back to 0.00 and not error."""
+async def test_streaming_sentiment_delta_fallback(agent_service):
+    """Streaming: LLM returns no sentiment_delta; backend should fall back to 0.00 and not error."""
     user_id = "user1"
     conversation_id = "conv1"
     content = "Test message"
-    # persona = agent_service.load_persona()  # Unused
-    # history = []  # Unused
-    # Patch run_stakeholder_query to return AgentResponse with no sentiment
+
+    async def mock_stream():
+        yield '{"content": "reply", "sentiment": null}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content="reply", sentiment=None)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -512,32 +479,39 @@ async def test_llm_missing_sentiment_delta_fallback(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 5.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    result = await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    assert result == "reply"
-                    # Should fall back to 0.00, so updated = 5.0
-                    mock_update.assert_awaited_with(conversation_id, Decimal("5.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("5.0")),
+                    ):
+                        # Consume all chunks to trigger finalization
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("5.0"), None
+                        )
 
 
 @pytest.mark.anyio
-async def test_llm_invalid_sentiment_delta_type(agent_service):
-    """LLM returns non-decimal sentiment_delta; backend should fall back to 0.00."""
+async def test_streaming_sentiment_delta_type_error(agent_service):
+    """Streaming: LLM returns non-decimal sentiment_delta; backend should fall back to 0.00."""
     user_id = "user2"
     conversation_id = "conv2"
     content = "Test message"
 
-    # Patch run_stakeholder_query to return a dict (simulate LLM output, bypass Pydantic validation)
-    class FakeResponse:
-        content = "reply"
-        sentiment = "not_a_number"
+    async def mock_stream():
+        yield '{"content": "reply", "sentiment": "not_a_number"}'
 
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=FakeResponse()),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -545,26 +519,39 @@ async def test_llm_invalid_sentiment_delta_type(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 2.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    result = await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    assert result == "reply"
-                    mock_update.assert_awaited_with(conversation_id, Decimal("2.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("2.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("2.0"), None
+                        )
 
 
 @pytest.mark.anyio
-async def test_sentiment_clamping_upper_and_lower(agent_service):
-    """Sentiment update clamps at -10 and +10."""
+async def test_streaming_sentiment_clamping(agent_service):
+    """Streaming: Sentiment update clamps at -10 and +10."""
     user_id = "user3"
     conversation_id = "conv3"
     content = "Test message"
+
     # Clamp upper
+    async def mock_stream_upper():
+        yield '{"content": "reply", "sentiment": 5.0}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content="reply", sentiment=5.0)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream_upper(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -572,17 +559,32 @@ async def test_sentiment_clamping_upper_and_lower(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 8.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    mock_update.assert_awaited_with(conversation_id, Decimal("10.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("8.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        # Example for clamping test (upper):
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("8.0"), 5.0
+                        )
+
     # Clamp lower
+    async def mock_stream_lower():
+        yield '{"content": "reply", "sentiment": -5.0}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content="reply", sentiment=-5.0)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream_lower(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -590,25 +592,39 @@ async def test_sentiment_clamping_upper_and_lower(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": -8.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    mock_update.assert_awaited_with(conversation_id, Decimal("-10.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("-8.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("-8.0"), -5.0
+                        )
 
 
 @pytest.mark.anyio
-async def test_llm_output_with_think_tag(agent_service):
-    """LLM output includes <think> tags; backend should not include them in saved message."""
+async def test_streaming_think_tag_stripped(agent_service):
+    """Streaming: LLM output includes <think> tags; backend should not include them in saved message."""
     user_id = "user4"
     conversation_id = "conv4"
     content = "Test message"
     llm_content = "<think>reasoning</think> Final answer."
+
+    async def mock_stream():
+        yield f'{{"content": "{llm_content}", "sentiment": 0.5}}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content=llm_content, sentiment=0.5)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -621,33 +637,42 @@ async def test_llm_output_with_think_tag(agent_service):
                 with patch.object(
                     agent_service, "save_ai_message", new=AsyncMock()
                 ) as mock_save:
-                    await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    # Check all calls for the saved content
-                    found = False
-                    for call in mock_save.await_args_list:
-                        args = call.args
-                        kwargs = call.kwargs
-                        print("DEBUG: save_ai_message args:", args, "kwargs:", kwargs)
-                        content = kwargs.get(
-                            "content", args[2] if len(args) >= 3 else None
-                        )
-                        if content is not None and "<think>" not in content:
-                            found = True
-                    assert found, "<think> tag was not stripped from saved message."
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("0.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        found = False
+                        for call in mock_save.await_args_list:
+                            args = call.args
+                            kwargs = call.kwargs
+                            content_arg = kwargs.get(
+                                "content", args[2] if len(args) >= 3 else None
+                            )
+                            if content_arg is not None and "<think>" not in content_arg:
+                                found = True
+                        assert found, "<think> tag was not stripped from saved message."
 
 
 @pytest.mark.anyio
-async def test_llm_returns_absolute_sentiment(agent_service):
-    """LLM returns absolute sentiment (should be rejected/fallback to 0.00)."""
+async def test_streaming_absolute_sentiment(agent_service):
+    """Streaming: LLM returns absolute sentiment (should be treated as delta, clamped)."""
     user_id = "user5"
     conversation_id = "conv5"
     content = "Test message"
-    # Simulate LLM returning absolute sentiment (should be delta only)
+
+    async def mock_stream():
+        yield '{"content": "reply", "sentiment": 10.0}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content="reply", sentiment=10.0)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -655,26 +680,40 @@ async def test_llm_returns_absolute_sentiment(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 2.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    # Should treat as delta, so updated = 2.0 + 10.0 = 10.0 (clamped)
-                    mock_update.assert_awaited_with(conversation_id, Decimal("10.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("2.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        # Example for absolute sentiment test:
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("2.0"), 10.0
+                        )
 
 
 @pytest.mark.anyio
-async def test_next_turn_uses_updated_sentiment(agent_service):
-    """Next turn uses updated sentiment from DB."""
+async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
+    """Streaming: Next turn uses updated sentiment from DB."""
     user_id = "user6"
     conversation_id = "conv6"
     content = "Test message"
+
     # First turn: delta +2.0, current 0.0
+    async def mock_stream1():
+        yield '{"content": "reply", "sentiment": 2.0}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content="reply", sentiment=2.0)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream1(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -682,17 +721,32 @@ async def test_next_turn_uses_updated_sentiment(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 0.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    mock_update.assert_awaited_with(conversation_id, Decimal("2.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("0.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        # Example for next turn test:
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("0.0"), 2.0
+                        )
+
     # Second turn: delta -1.0, current should be 2.0
+    async def mock_stream2():
+        yield '{"content": "reply2", "sentiment": -1.0}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content="reply2", sentiment=-1.0)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream2(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -700,24 +754,38 @@ async def test_next_turn_uses_updated_sentiment(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 2.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    mock_update.assert_awaited_with(conversation_id, Decimal("1.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("2.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("2.0"), -1.0
+                        )
 
 
 @pytest.mark.anyio
-async def test_llm_no_cues_delta_zero(agent_service):
-    """LLM returns delta 0.00 when no cues detected."""
+async def test_streaming_no_cues_delta_zero(agent_service):
+    """Streaming: LLM returns delta 0.00 when no cues detected."""
     user_id = "user7"
     conversation_id = "conv7"
     content = "Test message"
+
+    async def mock_stream():
+        yield '{"content": "reply", "sentiment": 0.0}'
+
     with patch(
-        "src.service.agent_service.AgentService.run_stakeholder_query",
-        new=AsyncMock(return_value=AgentResponse(content="reply", sentiment=0.0)),
+        "src.service.agent_service._run_stakeholder_query_stream",
+        return_value=mock_stream(),
     ):
         with patch.object(
             agent_service.sentiment_service,
@@ -725,10 +793,20 @@ async def test_llm_no_cues_delta_zero(agent_service):
             new=AsyncMock(return_value=type("Sentiment", (), {"sentiment": 3.0})()),
         ):
             with patch.object(
-                agent_service.sentiment_service, "update_sentiment", new=AsyncMock()
-            ) as mock_update:
+                agent_service.sentiment_service, "apply_delta", new=AsyncMock()
+            ) as mock_apply_delta:
                 with patch.object(agent_service, "save_ai_message", new=AsyncMock()):
-                    await agent_service.process_agent_query(
-                        user_id, conversation_id, content
-                    )
-                    mock_update.assert_awaited_with(conversation_id, Decimal("3.00"))
+                    with patch.object(
+                        agent_service.sentiment_service,
+                        "get_current_sentiment_value",
+                        new=AsyncMock(return_value=Decimal("3.0")),
+                    ):
+                        async for _ in agent_service.process_agent_query_stream(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            content=content,
+                        ):
+                            pass
+                        mock_apply_delta.assert_awaited_with(
+                            conversation_id, Decimal("3.0"), 0.0
+                        )

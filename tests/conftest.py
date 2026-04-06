@@ -245,8 +245,66 @@ def agent_service(mock_message_service):
     mock_sentiment_service = MagicMock()
     mock_sentiment_service.get_sentiment = AsyncMock(return_value=None)
     mock_sentiment_service.update_sentiment = AsyncMock(return_value=None)
+    # Ensure get_persona_w_current_sentiment is always an AsyncMock
+    mock_sentiment_service.get_persona_w_current_sentiment = AsyncMock(
+        return_value=None
+    )
     return AgentService(
         model_service=mock_model_service,
         message_service=mock_message_service,
         sentiment_service=mock_sentiment_service,
+    )
+
+
+@pytest.fixture
+def mock_sentiment_repository():
+    """Create a mock SentimentRepository."""
+    mock = MagicMock()
+    mock.get_sentiment = AsyncMock(return_value=None)
+    mock.update_sentiment = AsyncMock(return_value=None)
+    return mock
+
+
+@pytest.fixture
+def sentiment_data_service(mock_sentiment_repository):
+    """Create a SentimentService with mocked repository."""
+    from src.service.sentiment_service import SentimentService
+
+    return SentimentService(sentiment_repository=mock_sentiment_repository)
+
+
+@pytest.fixture
+def build_persona():
+    """Build a Persona instance for sentiment tests."""
+    from src.schemas.persona_model import (
+        Persona,
+        ExpertiseLevel,
+        Personality,
+        PersonalityFocus,
+        CommunicationRules,
+    )
+
+    return Persona(
+        name="Owen",
+        role="Owner, Golden Bikes",
+        location="Test Location",
+        background=["bg"],
+        goals=["goal"],
+        expertise_level=ExpertiseLevel(business="high", technology="low"),
+        personality=Personality(
+            tone=["friendly"],
+            professionalism="casual",
+            focus=PersonalityFocus(can_tangent=False, refocus_easily=True),
+        ),
+        communication_rules=CommunicationRules(avoid=["jargon"]),
+    )
+
+
+@pytest.fixture
+async def persona_with_sentiment(agent_service):
+    """Persona with current sentiment for agent service tests."""
+    persona = agent_service.load_persona()
+    # Use a dummy conversation_id for tests
+    return await agent_service.sentiment_service.get_persona_w_current_sentiment(
+        persona, "test-conv-id"
     )

@@ -46,4 +46,3 @@ MessageService = Annotated[MessageServiceClass, Depends(get_message_service)]
 SentimentRepository = Annotated[
     SentimentRepositoryClass, Depends(get_sentiment_repository)
 ]
-SentimentService = Annotated[SentimentServiceClass, Depends(get_sentiment_service)]
