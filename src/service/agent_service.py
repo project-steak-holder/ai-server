@@ -8,6 +8,8 @@ import json
 from typing import AsyncGenerator, Optional
 from pydantic_ai import ModelMessage
 from pydantic import ValidationError
+import httpx
+import httpcore
 
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import add_event_context, wide_event
@@ -173,27 +175,36 @@ class AgentService:
         )
 
         full_response = ""
-        error_occurred = False
         last_sentiment_delta = None
         try:
             async for chunk in self.run_stakeholder_query_stream(
                 content, history, persona_with_sentiment
             ):
-                # Try to parse as JSON; if fails, treat as plain text
-                chunk_content = None
-                sentiment_delta = None
-                if isinstance(chunk, str):
-                    try:
-                        chunk_obj = json.loads(chunk)
-                        if isinstance(chunk_obj, dict):
-                            if "content" in chunk_obj:
-                                chunk_content = chunk_obj["content"]
-                            if "sentiment" in chunk_obj:
-                                sentiment_delta = chunk_obj["sentiment"]
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                if chunk_content is None:
-                    chunk_content = chunk
+                # Enforce strict JSON dict format with 'content' (and optionally 'sentiment')
+                try:
+                    if not isinstance(chunk, str):
+                        raise LlmResponseException(
+                            message="Agent stream chunk is not a string",
+                            details={"chunk_type": str(type(chunk))},
+                        )
+                    chunk_obj = json.loads(chunk)
+                    if not isinstance(chunk_obj, dict) or "content" not in chunk_obj:
+                        raise LlmResponseException(
+                            message="Agent stream chunk missing required 'content' field",
+                            details={"chunk": chunk},
+                        )
+                except (json.JSONDecodeError, TypeError) as e:
+                    raise LlmResponseException(
+                        message="Agent stream chunk is not valid JSON",
+                        details={"chunk": chunk, "error": str(e)},
+                    )
+                except (httpx.ReadError, httpcore.ReadError) as e:
+                    raise LlmResponseException(
+                        message="I'm sorry, there was a network error connecting to the AI provider. Please try again.",
+                        details={"error": str(e)},
+                    )
+                chunk_content = chunk_obj["content"]
+                sentiment_delta = chunk_obj.get("sentiment")
                 full_response += chunk_content
                 if sentiment_delta is not None:
                     last_sentiment_delta = sentiment_delta
@@ -207,23 +218,20 @@ class AgentService:
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
         except LlmResponseException as e:
-            error_occurred = True
             full_response = (
-                "I'm sorry, I encountered an error and was unable to respond."
+                e.message
+                if hasattr(e, "message") and e.message
+                else "I'm sorry, I encountered an error and was unable to respond."
             )
-            add_event_context(error_type="LlmResponseException", error_message=str(e))
-            yield f"data: {json.dumps({'error': full_response})}\n\n"
+            add_event_context(error_message=str(e))
+            yield f"data: {json.dumps({'content': full_response, 'partial': True})}\n\n"
 
         except Exception as e:
-            error_occurred = True
             full_response = "I'm sorry, I encountered an unexpected error and was unable to respond."
-            add_event_context(error_type="UnexpectedException", error_message=str(e))
-            yield f"data: {json.dumps({'error': full_response})}\n\n"
+            add_event_context(error_message=str(e))
+            yield f"data: {json.dumps({'content': full_response, 'partial': True})}\n\n"
 
         finally:
-            if not error_occurred:
-                await self.save_ai_message(
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    content=full_response,
-                )
+            await self.save_ai_message(
+                user_id=user_id, conversation_id=conversation_id, content=full_response
+            )

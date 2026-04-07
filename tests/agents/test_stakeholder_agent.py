@@ -11,7 +11,6 @@ from src.agents.stakeholder_agent import (
     AgentDependencies,
     AgentResponse,
     create_stakeholder_agent,
-    run_stakeholder_query,
     run_stakeholder_query_stream,
     get_stakeholder_agent,
 )
@@ -20,9 +19,6 @@ from src.schemas.listening_cues_model import ListeningCues, ListeningCue
 from src.schemas.instructions_model import InstructionsModel
 
 from src.agents.stakeholder_agent import strip_think_tags
-
-
-# sample_persona and sample_project fixtures are now provided by conftest.py
 
 
 @pytest.fixture
@@ -73,118 +69,6 @@ def test_get_stakeholder_agent_singleton():
 
     # Should be the same instance
     assert agent1 is agent2
-
-
-@pytest.mark.anyio
-async def test_run_stakeholder_query_success(
-    sample_persona, sample_project, sample_history
-):
-    """Test successful stakeholder query execution."""
-
-    # Mock the agent's run method result
-    mock_result = MagicMock()
-    mock_response = AgentResponse(
-        content="I think we should focus on quality bikes.", sentiment=0.5
-    )
-    mock_result.output = mock_response
-
-    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
-        mock_agent = MagicMock()
-        mock_agent.run = AsyncMock(return_value=mock_result)
-        mock_get_agent.return_value = mock_agent
-
-        # Run the query
-        result = await run_stakeholder_query(
-            message="What should we prioritize?",
-            persona=sample_persona,
-            project=sample_project,
-            history=sample_history,
-            sentiment_scale=dummy_sentiment_scale(),
-            listening_cues=dummy_listening_cues(),
-            instructions=dummy_instructions(),
-        )
-
-        # Verify the result
-        assert result == "I think we should focus on quality bikes."
-
-        # Verify agent.run was called with correct args
-        mock_agent.run.assert_called_once()
-        call_args = mock_agent.run.call_args
-
-        # Check the user_prompt argument
-        assert call_args[1]["user_prompt"] == "What should we prioritize?"
-
-        # Check the deps argument
-        deps = call_args[1]["deps"]
-        assert isinstance(deps, AgentDependencies)
-        assert deps.persona == sample_persona
-        assert deps.project == sample_project
-        assert deps.history == sample_history
-
-
-@pytest.mark.anyio
-async def test_run_stakeholder_query_with_empty_history(sample_persona, sample_project):
-    """Test stakeholder query with no conversation history."""
-
-    mock_result = MagicMock()
-    mock_response = AgentResponse(content="Hello! How can I help?", sentiment=-0.2)
-    mock_result.output = mock_response
-
-    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
-        mock_agent = MagicMock()
-        mock_agent.run = AsyncMock(return_value=mock_result)
-        mock_get_agent.return_value = mock_agent
-
-        # Run with empty history
-        result = await run_stakeholder_query(
-            message="Hi there!",
-            persona=sample_persona,
-            project=sample_project,
-            history=[],
-            sentiment_scale=dummy_sentiment_scale(),
-            listening_cues=dummy_listening_cues(),
-            instructions=dummy_instructions(),
-        )
-
-        assert result == "Hello! How can I help?"
-
-        # Verify deps had empty history
-        deps = mock_agent.run.call_args[1]["deps"]
-        assert deps.history == []
-
-
-@pytest.mark.anyio
-async def test_run_stakeholder_query_preserves_persona_characteristics(
-    sample_persona, sample_project
-):
-    """Test that query preserves persona characteristics in dependencies."""
-
-    mock_result = MagicMock()
-    mock_response = AgentResponse(
-        content="As a business owner, I think...", sentiment=1.0
-    )
-    mock_result.output = mock_response
-
-    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
-        mock_agent = MagicMock()
-        mock_agent.run = AsyncMock(return_value=mock_result)
-        mock_get_agent.return_value = mock_agent
-
-        await run_stakeholder_query(
-            message="What's your expertise?",
-            persona=sample_persona,
-            project=sample_project,
-            history=[],
-            sentiment_scale=dummy_sentiment_scale(),
-            listening_cues=dummy_listening_cues(),
-            instructions=dummy_instructions(),
-        )
-
-        # Verify persona details are preserved
-        deps = mock_agent.run.call_args[1]["deps"]
-        assert deps.persona.expertise_level.business == "high"
-        assert deps.persona.personality.professionalism == "business casual"
-        assert "technical jargon" in deps.persona.communication_rules.avoid
 
 
 def test_create_stakeholder_agent_builds_prompt(
@@ -259,28 +143,6 @@ def test_create_stakeholder_agent_builds_prompt(
     assert sample_project.project_name in prompt
     assert captured["provider_kwargs"]["base_url"] == "http://ai.local"
     assert captured["model_kwargs"]["model_name"] == "model-x"
-
-
-@pytest.mark.anyio
-async def test_run_stakeholder_query_wraps_unexpected_exception(
-    sample_persona, sample_project
-):
-    """Test non-LLM exceptions are wrapped as LlmResponseException."""
-    with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
-        mock_agent = MagicMock()
-        mock_agent.run = AsyncMock(side_effect=RuntimeError("llm down"))
-        mock_get_agent.return_value = mock_agent
-
-        with pytest.raises(Exception, match="Error running stakeholder agent"):
-            await run_stakeholder_query(
-                message="hello",
-                persona=sample_persona,
-                project=sample_project,
-                history=[],
-                sentiment_scale=dummy_sentiment_scale(),
-                listening_cues=dummy_listening_cues(),
-                instructions=dummy_instructions(),
-            )
 
 
 @pytest.mark.anyio

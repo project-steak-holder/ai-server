@@ -111,44 +111,6 @@ def get_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     return _agent
 
 
-@wide_event("stakeholder_query")
-async def run_stakeholder_query(
-    message: str,
-    persona: Persona,
-    project: Project,
-    history: list[ModelMessage],
-    sentiment_scale: SentimentScale,
-    listening_cues: ListeningCues,
-    instructions: InstructionsModel,
-) -> str:
-    """Run a query through the stakeholder agent."""
-    agent = get_stakeholder_agent()
-
-    # Create dependencies
-    deps = AgentDependencies(
-        persona=persona,
-        project=project,
-        history=history,
-        sentiment_scale=sentiment_scale,
-        listening_cues=listening_cues,
-        instructions=instructions,
-    )
-    try:
-        result = await agent.run(
-            user_prompt=message, deps=deps, message_history=history
-        )
-        # Clean the content before returning (remove think tags and strip whitespace)
-        clean_content = strip_think_tags(result.output.content, strip_whitespace=True)
-        # If result.output is an AgentResponse, update its content
-        if hasattr(result, "output") and hasattr(result.output, "content"):
-            result.output.content = clean_content
-        return clean_content
-    except Exception as e:
-        raise LlmResponseException(
-            message="Error running stakeholder agent", details={"error": str(e)}
-        )
-
-
 @wide_event("stakeholder_query_stream")
 async def run_stakeholder_query_stream(
     message: str,

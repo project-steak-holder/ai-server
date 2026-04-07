@@ -105,8 +105,14 @@ async def test_process_agent_query_stream_success(agent_service):
 
     # Mock streaming chunks
     async def mock_streaming_chunks():
-        chunks = ["We have ", "mountain bikes ", "and road bikes!"]  # noqa: F402
-        for chunk in chunks:  # noqa: F402
+        import json
+
+        chunks = [
+            json.dumps({"content": "We have "}),
+            json.dumps({"content": "mountain bikes "}),
+            json.dumps({"content": "and road bikes!"}),
+        ]
+        for chunk in chunks:
             yield chunk
 
     # Patch the compactor and run_stakeholder_query_stream
@@ -235,18 +241,13 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         ):
             chunks.append(chunk)
 
-        # Should yield a single SSE error event
         assert len(chunks) == 1
         assert chunks[0].startswith("data: ")
 
         import json
 
         error_data = json.loads(chunks[0][6:-2])  # Remove "data: " and "\n\n"
-        assert (
-            error_data["error"]
-            == "I'm sorry, I encountered an error and was unable to respond."
-        )
-        assert "details" not in error_data
+        assert error_data["content"] == "LLM streaming timeout"
 
         mock_compact.assert_called_once()
         mock_run_stream.assert_called_once()
@@ -256,8 +257,12 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
             user_id=user_id, conversation_id=conversation_id, content=content
         )
 
-        # Verify AI error message was NOT saved (error responses are not persisted)
-        agent_service.message_service.save_ai_message.assert_not_called()
+        # Verify AI error message WAS saved (error responses are now persisted)
+        agent_service.message_service.save_ai_message.assert_called_once_with(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content="LLM streaming timeout",
+        )
 
 
 @pytest.mark.anyio
@@ -384,7 +389,15 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
 
     # Mock streaming chunks
     async def mock_streaming_chunks():
-        chunks = ["Hello ", "there! ", "How ", "are ", "you?"]
+        import json
+
+        chunks = [
+            json.dumps({"content": "Hello "}),
+            json.dumps({"content": "there! "}),
+            json.dumps({"content": "How "}),
+            json.dumps({"content": "are "}),
+            json.dumps({"content": "you?"}),
+        ]
         for chunk in chunks:
             yield chunk
 
