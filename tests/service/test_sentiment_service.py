@@ -157,3 +157,44 @@ async def test_get_current_sentiment_value_not_found(sentiment_data_service):
     sentiment_data_service.get_sentiment = AsyncMock(return_value=None)
     result = await sentiment_data_service.get_current_sentiment_value("conv-3")
     assert result == Decimal("0.00")
+
+
+@pytest.mark.anyio
+async def test_apply_delta_clamps_and_persists(
+    sentiment_data_service, mock_sentiment_repository
+):
+    # Setup: current sentiment is 8.0
+    conversation_id = "conv-apply"
+    sentiment_obj = MagicMock(spec=Sentiment)
+    sentiment_obj.sentiment = 8.0
+    mock_sentiment_repository.get_sentiment.return_value = sentiment_obj
+    mock_sentiment_repository.update_sentiment.return_value = sentiment_obj
+
+    # Case 1: Positive delta, clamps to 10.0
+    await sentiment_data_service.apply_delta(conversation_id, 5.0)
+    mock_sentiment_repository.update_sentiment.assert_awaited_with(
+        conversation_id, Decimal("10.00")
+    )
+
+    # Case 2: Negative delta, clamps to -10.0
+    sentiment_obj.sentiment = -8.0
+    mock_sentiment_repository.get_sentiment.return_value = sentiment_obj
+    await sentiment_data_service.apply_delta(conversation_id, -5.0)
+    mock_sentiment_repository.update_sentiment.assert_awaited_with(
+        conversation_id, Decimal("-10.00")
+    )
+
+    # Case 3: No current sentiment, should start at 0.0
+    mock_sentiment_repository.get_sentiment.return_value = None
+    await sentiment_data_service.apply_delta(conversation_id, 2.5)
+    mock_sentiment_repository.update_sentiment.assert_awaited_with(
+        conversation_id, Decimal("2.50")
+    )
+
+    # Case 4: Invalid delta input, should treat as 0.0
+    sentiment_obj.sentiment = 1.0
+    mock_sentiment_repository.get_sentiment.return_value = sentiment_obj
+    await sentiment_data_service.apply_delta(conversation_id, "not_a_number")
+    mock_sentiment_repository.update_sentiment.assert_awaited_with(
+        conversation_id, Decimal("1.00")
+    )

@@ -4,13 +4,12 @@ Simulates a project stakeholder persona for interactive conversations.
 """
 
 import os
-
+import re
+from typing import cast, AsyncGenerator, Optional
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
-from typing import cast, AsyncGenerator
-
 
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import wide_event
@@ -32,11 +31,19 @@ class AgentDependencies(BaseModel):
     instructions: "InstructionsModel"
 
 
+def strip_think_tags(text: str, strip_whitespace: bool = False) -> str:
+    """Remove all <think>...</think> tags from the text (non-greedy). Optionally strip whitespace."""
+    if not isinstance(text, str):
+        return text
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    return cleaned.strip() if strip_whitespace else cleaned
+
+
 class AgentResponse(BaseModel):
     """Structured response from the stakeholder agent."""
 
     content: str = Field(..., description="The agent's response message")
-    sentiment: float | None = Field(
+    sentiment: Optional[float] = Field(
         default=None,
         description="The updated sentiment value after this message, if available.",
     )
@@ -93,7 +100,7 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
 
 
 # Singleton instance
-_agent: Agent[AgentDependencies, AgentResponse] | None = None
+_agent: Optional[Agent[AgentDependencies, AgentResponse]] = None
 
 
 def get_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
@@ -130,7 +137,12 @@ async def run_stakeholder_query(
         result = await agent.run(
             user_prompt=message, deps=deps, message_history=history
         )
-        return result.output.content
+        # Clean the content before returning (remove think tags and strip whitespace)
+        clean_content = strip_think_tags(result.output.content, strip_whitespace=True)
+        # If result.output is an AgentResponse, update its content
+        if hasattr(result, "output") and hasattr(result.output, "content"):
+            result.output.content = clean_content
+        return clean_content
     except Exception as e:
         raise LlmResponseException(
             message="Error running stakeholder agent", details={"error": str(e)}
@@ -164,10 +176,16 @@ async def run_stakeholder_query_stream(
             user_prompt=message, deps=deps, message_history=history, output_type=str
         ) as streamed_result:
             async for chunk in streamed_result.stream_text(delta=True):
-                yield chunk
+                # Clean each chunk before yielding (remove think tags only, preserve whitespace)
+                yield strip_think_tags(chunk, strip_whitespace=False)
 
-    except Exception as e:
+    except (AttributeError, TypeError, ValueError, RuntimeError) as e:
         raise LlmResponseException(
             message="Error streaming stakeholder agent response",
+            details={"error": str(e)},
+        )
+    except Exception as e:
+        raise LlmResponseException(
+            message="Unexpected error streaming stakeholder agent response",
             details={"error": str(e)},
         )

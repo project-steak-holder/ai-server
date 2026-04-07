@@ -4,6 +4,8 @@ Unit tests for MessageService.
 
 import pytest
 import uuid
+from unittest.mock import MagicMock
+from datetime import datetime, timezone
 
 from src.schemas.message_model import MessageType
 
@@ -92,8 +94,6 @@ async def test_get_conversation_history_with_messages(
     message_service, mock_message_repository
 ):
     """Test retrieving conversation history with existing messages."""
-    from unittest.mock import MagicMock
-    from datetime import datetime, timezone
 
     conversation_id = str(uuid.uuid4())
     user_id = str(uuid.uuid4())

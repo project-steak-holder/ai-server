@@ -19,6 +19,8 @@ from src.schemas.sentiment_scale_model import SentimentScale, SentimentScaleEntr
 from src.schemas.listening_cues_model import ListeningCues, ListeningCue
 from src.schemas.instructions_model import InstructionsModel
 
+from src.agents.stakeholder_agent import strip_think_tags
+
 
 # sample_persona and sample_project fixtures are now provided by conftest.py
 
@@ -223,9 +225,6 @@ def test_create_stakeholder_agent_builds_prompt(
     assert isinstance(agent, FakeAgent)
 
     # Provide required dummy dependencies for AgentDependencies
-    from src.schemas.sentiment_scale_model import SentimentScale, SentimentScaleEntry
-    from src.schemas.listening_cues_model import ListeningCues, ListeningCue
-    from src.schemas.instructions_model import InstructionsModel
 
     dummy_sentiment_scale = SentimentScale(
         purpose="test", scale=[SentimentScaleEntry(label="neutral", score=0)]
@@ -459,6 +458,24 @@ async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
         # Verify stream_text was called with delta=True
         assert len(stream_text_calls) == 1
         assert stream_text_calls[0]["delta"] is True
+
+
+def test_strip_think_tags():
+    # Case 1: Remove <think> tags, preserve whitespace
+    text = "Hello <think>internal</think> world!"
+    assert strip_think_tags(text) == "Hello  world!"
+
+    # Case 2: Remove <think> tags, strip whitespace
+    text = "  <think>internal</think>Trim me  "
+    assert strip_think_tags(text, strip_whitespace=True) == "Trim me"
+
+    # Case 3: No <think> tags
+    text = "Just normal text."
+    assert strip_think_tags(text) == "Just normal text."
+
+    # Case 4: Multiple <think> tags
+    text = "A<think>x</think>B<think>y</think>C"
+    assert strip_think_tags(text) == "ABC"
 
 
 def dummy_sentiment_scale():

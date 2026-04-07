@@ -14,7 +14,7 @@ from src.schemas.project_model import Project
 from src.schemas.sentiment_scale_model import SentimentScale
 from src.schemas.listening_cues_model import ListeningCues
 from src.schemas.instructions_model import InstructionsModel
-
+from src.middlewares.events import wide_event
 
 # only models listed in registry supported
 ModelType = Union[Persona, Project, SentimentScale, ListeningCues, InstructionsModel]
@@ -68,6 +68,7 @@ class ModelService:
             # Add new models here as needed
         }
 
+    @wide_event("_load_model")
     def _load_model(self, model_name: str) -> bool:
         """
         (Private) Force reloads / caches a model instance for given name, always reading from disk.
@@ -110,6 +111,7 @@ class ModelService:
                 message=f"Unexpected error loading {model_name} context"
             ) from cle
 
+    @wide_event("get_model")
     def get_model(self, model_name: str) -> ModelType:
         """
         Returns cached model instance

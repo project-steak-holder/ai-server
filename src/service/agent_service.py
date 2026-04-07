@@ -5,7 +5,6 @@ persistence, persona, project context, and LLM interaction for a project stakeho
 """
 
 import json
-import re
 from typing import AsyncGenerator, Optional
 from pydantic_ai import ModelMessage
 from pydantic import ValidationError
@@ -23,7 +22,6 @@ from src.service.model_service import ModelService
 from src.service.message_service import MessageService
 from src.agents.stakeholder_agent import (
     run_stakeholder_query_stream as _run_stakeholder_query_stream,
-    AgentResponse,
 )
 
 
@@ -101,6 +99,7 @@ class AgentService:
         """set from request payload in orchestrator method"""
         self.conversation_id = conversation_id
 
+    @wide_event("save_user_message")
     async def save_user_message(
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
@@ -114,6 +113,7 @@ class AgentService:
             from_attributes=True,
         )
 
+    @wide_event("save_ai_message")
     async def save_ai_message(
         self, user_id: str, conversation_id: str, content: str
     ) -> Message:
@@ -127,6 +127,7 @@ class AgentService:
             from_attributes=True,
         )
 
+    @wide_event("run_stakeholder_query_stream")
     async def run_stakeholder_query_stream(
         self, content: str, history: list[Message], persona: Persona
     ) -> AsyncGenerator[str, None]:
@@ -170,59 +171,59 @@ class AgentService:
                 persona, conversation_id
             )
         )
-        # get current sentiment value for update with delta later
-        current_sentiment = await self.sentiment_service.get_current_sentiment_value(
-            conversation_id
-        )
 
         full_response = ""
+        error_occurred = False
+        last_sentiment_delta = None
         try:
             async for chunk in self.run_stakeholder_query_stream(
                 content, history, persona_with_sentiment
             ):
-                full_response += chunk
-                yield f"data: {json.dumps({'content': chunk, 'partial': True})}\n\n"
-
+                # Try to parse as JSON; if fails, treat as plain text
+                chunk_content = None
+                sentiment_delta = None
+                if isinstance(chunk, str):
+                    try:
+                        chunk_obj = json.loads(chunk)
+                        if isinstance(chunk_obj, dict):
+                            if "content" in chunk_obj:
+                                chunk_content = chunk_obj["content"]
+                            if "sentiment" in chunk_obj:
+                                sentiment_delta = chunk_obj["sentiment"]
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                if chunk_content is None:
+                    chunk_content = chunk
+                full_response += chunk_content
+                if sentiment_delta is not None:
+                    last_sentiment_delta = sentiment_delta
+                yield f"data: {json.dumps({'content': chunk_content, 'partial': True})}\n\n"
             add_event_context(ai_response_length=len(full_response))
 
-            # Try to parse the full response as AgentResponse
-            try:
-                response_obj = AgentResponse.model_validate(json.loads(full_response))
-            except (json.JSONDecodeError, ValidationError, TypeError, ValueError):
-                response_obj = None
-
-            # get delta from LLM response
-            sentiment_delta = (
-                getattr(response_obj, "sentiment", None) if response_obj else None
-            )
-            # apply delta and persist using SentimentService
+            # Apply the last sentiment delta seen in the stream (if any)
             await self.sentiment_service.apply_delta(
-                conversation_id, current_sentiment, sentiment_delta
+                conversation_id, last_sentiment_delta
             )
             yield f"data: {json.dumps({'complete': True})}\n\n"
 
         except LlmResponseException as e:
+            error_occurred = True
             full_response = (
                 "I'm sorry, I encountered an error and was unable to respond."
             )
-            print(f"[DEBUG] LlmResponseException: {e}")
             add_event_context(error_type="LlmResponseException", error_message=str(e))
             yield f"data: {json.dumps({'error': full_response})}\n\n"
 
         except Exception as e:
+            error_occurred = True
             full_response = "I'm sorry, I encountered an unexpected error and was unable to respond."
-            print(f"[DEBUG] Unexpected exception: {e}")
             add_event_context(error_type="UnexpectedException", error_message=str(e))
             yield f"data: {json.dumps({'error': full_response})}\n\n"
 
         finally:
-            # Strip <think>...</think> tags from the accumulated response before saving
-            if full_response:
-                # Remove all <think>...</think> tags (non-greedy)
-                full_response = re.sub(
-                    r"<think>.*?</think>", "", full_response, flags=re.DOTALL
+            if not error_occurred:
+                await self.save_ai_message(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    content=full_response,
                 )
-                full_response = full_response.strip()
-            await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=full_response
-            )
