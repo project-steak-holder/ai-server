@@ -91,7 +91,7 @@ def test_get_stakeholder_agent_singleton():
         patch("src.agents.stakeholder_agent.GoogleModel", DummyModel),
         patch("src.agents.stakeholder_agent.Agent", DummyAgent),
     ):
-        os.environ["GOOGLE_API_KEY"] = "test-key"
+        os.environ["AI_PROVIDER_API_KEY"] = "test-key"
         agent1 = get_stakeholder_agent()
         agent2 = get_stakeholder_agent()
         assert isinstance(agent1, DummyAgent)
@@ -133,7 +133,7 @@ def test_create_stakeholder_agent_builds_prompt(
             captured["prompt_fn"] = fn
             return fn
 
-    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    monkeypatch.setenv("AI_PROVIDER_API_KEY", "test-key")
     # Set model name to match assertion
     monkeypatch.setenv("AI_PROVIDER_MODEL", "gemini-2.5-flash")
     monkeypatch.setattr("src.agents.stakeholder_agent.Agent", FakeAgent)
@@ -185,7 +185,7 @@ async def test_run_stakeholder_query_stream_success(
     sample_persona, sample_project, sample_history
 ):
     """Test successful stakeholder query streaming execution."""
-    os.environ["GOOGLE_API_KEY"] = "test-key"
+    os.environ["AI_PROVIDER_API_KEY"] = "test-key"
 
     # Mock the agent's run_stream method and StreamedRunResult
     mock_streamed_result = MagicMock()
@@ -261,7 +261,7 @@ async def test_run_stakeholder_query_stream_with_empty_history(
     sample_persona, sample_project
 ):
     """Test stakeholder query streaming with no conversation history."""
-    os.environ["GOOGLE_API_KEY"] = "test-key"
+    os.environ["AI_PROVIDER_API_KEY"] = "test-key"
 
     mock_streamed_result = MagicMock()
 
@@ -352,7 +352,7 @@ async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
     sample_persona, sample_project
 ):
     """Test that streaming query uses delta=True for incremental chunks."""
-    os.environ["GOOGLE_API_KEY"] = "test-key"
+    os.environ["AI_PROVIDER_API_KEY"] = "test-key"
 
     mock_streamed_result = MagicMock()
 

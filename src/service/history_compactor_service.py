@@ -27,7 +27,7 @@ class HistoryCompactorService:
     """Service for compacting and converting conversation history."""
 
     def __init__(self):
-        api_key = os.environ.get("GOOGLE_API_KEY", "")
+        api_key = os.environ.get("AI_PROVIDER_API_KEY", "")
         main_model_name = os.environ.get("AI_PROVIDER_MODEL", "gemini-2.5-flash")
         self.summarize_model = GoogleModel(
             model_name=main_model_name,

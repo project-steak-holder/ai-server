@@ -54,7 +54,7 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     """Create and configure the stakeholder agent."""
 
     # Get environment variables
-    api_key = os.environ.get("GOOGLE_API_KEY")
+    api_key = os.environ.get("AI_PROVIDER_API_KEY")
     model_name = os.environ.get("AI_PROVIDER_MODEL", "gemini-2.5-flash")
 
     provider = GoogleProvider(api_key=api_key)
