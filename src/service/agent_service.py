@@ -141,7 +141,7 @@ class AgentService:
         instructions = self.load_instructions()
         compacted_history: list[
             ModelMessage
-        ] = await HistoryCompactorService.summarize_old_messages(history)
+        ] = await HistoryCompactorService().summarize_old_messages(history)
         async for chunk in _run_stakeholder_query_stream(
             message=content,
             persona=persona,
@@ -176,7 +176,7 @@ class AgentService:
         )
 
         full_response = ""
-        last_sentiment_delta = None
+        last_sentiment = None
         try:
             async for chunk in self.run_stakeholder_query_stream(
                 content, history, persona_with_sentiment
@@ -194,15 +194,17 @@ class AgentService:
                     )
                 full_response += chunk.content
                 if chunk.sentiment is not None:
-                    last_sentiment_delta = chunk.sentiment
+                    last_sentiment = chunk.sentiment
                 yield f"data: {json.dumps({'content': chunk.content, 'partial': True})}\n\n"
-            add_event_context(ai_response_length=len(full_response))
 
-            # Apply the last sentiment delta seen in the stream (if any)
-            await self.sentiment_service.apply_delta(
-                conversation_id, last_sentiment_delta
-            )
-            yield f"data: {json.dumps({'content': full_response, 'sentiment': last_sentiment_delta, 'complete': True})}\n\n"
+            add_event_context(ai_response_length=len(full_response))
+            # persist last updated sentiment value seen in stream
+            if last_sentiment is not None:
+                await self.sentiment_service.update_sentiment(
+                    conversation_id, last_sentiment
+                )
+            # yield final response
+            yield f"data: {json.dumps({'content': full_response, 'sentiment': last_sentiment, 'complete': True})}\n\n"
 
         except LlmResponseException as e:
             full_response = (

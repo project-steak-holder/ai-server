@@ -8,8 +8,6 @@ import re
 from typing import cast, AsyncGenerator, Optional
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ModelMessage
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
@@ -56,22 +54,11 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     """Create and configure the stakeholder agent."""
 
     # Get environment variables
-    api_base_url = os.environ.get("AI_PROVIDER_BASE_URL", "")
-    api_key = os.environ.get("AI_PROVIDER_API_KEY", "")
+    api_key = os.environ.get("GOOGLE_API_KEY")
     model_name = os.environ.get("AI_PROVIDER_MODEL", "gemini-2.5-flash")
 
-    if model_name.startswith("gemini"):
-        provider = GoogleProvider(api_key=api_key)
-        model = GoogleModel(model_name=model_name, provider=provider)
-    else:
-        openai_provider = OpenAIProvider(
-            base_url=api_base_url,
-            api_key=api_key,
-        )
-        model = OpenAIChatModel(
-            model_name=model_name,
-            provider=openai_provider,
-        )
+    provider = GoogleProvider(api_key=api_key)
+    model = GoogleModel(model_name=model_name, provider=provider)
 
     agent = Agent(
         model=model,
@@ -90,19 +77,20 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
 
         # Current sentiment context
         current_sentiment = persona.personality.sentiment
-        if current_sentiment is not None:
-            closest_label = min(
-                sentiment_scale.scale,
-                key=lambda e: abs(e.score - current_sentiment),
-            ).label
-            sentiment_context = (
-                f"Your current sentiment toward this conversation is {current_sentiment} ({closest_label}).\n"
-                "Let this influence your tone and willingness to engage — "
-                "a low sentiment means you are frustrated or disengaged, "
-                "a high sentiment means you are enthusiastic and cooperative.\n"
-            )
-        else:
-            sentiment_context = "This is the start of the conversation. Your sentiment is neutral (0).\n"
+        if current_sentiment is None:
+            current_sentiment = 0.0  # Treat None as neutral
+
+        closest_label = min(
+            sentiment_scale.scale,
+            key=lambda e: abs(e.score - current_sentiment),
+        ).label
+        sentiment_context = (
+            f"Your current sentiment toward this conversation is {current_sentiment} ({closest_label}).\n"
+            "Let this influence your tone and willingness to engage — "
+            "Low sentiment means you are frustrated or disengaged, "
+            "High sentiment means you are enthusiastic and cooperative.\n"
+            "Share more requirements when sentiment is higher and less when lower"
+        )
 
         # Build sentiment scale description
         scale_lines = "\n".join(
@@ -178,6 +166,12 @@ async def run_stakeholder_query_stream(
     """Yield AgentResponse objects as structured output streams in."""
     agent = get_stakeholder_agent()
 
+    # Compute sentiment delta and updated value
+    sentiment_delta = compute_sentiment_delta(message, listening_cues)
+    orig_sentiment = persona.personality.sentiment or 0.0
+    updated_sentiment = max(-10.0, min(10.0, orig_sentiment + sentiment_delta))
+    persona.personality.sentiment = updated_sentiment
+
     deps = AgentDependencies(
         persona=persona,
         project=project,
@@ -193,26 +187,30 @@ async def run_stakeholder_query_stream(
             user_prompt=message, deps=deps, message_history=history
         ) as streamed_result:
             async for partial in streamed_result.stream_output(debounce_by=0.05):
-                # stream_output yields partial AgentResponse objects as they build up
-                # Extract only the new content delta
                 current_content = partial.content if partial.content else ""
                 delta = current_content[len(prev_content) :]
                 prev_content = current_content
                 if delta:
                     cleaned = strip_think_tags(delta, strip_whitespace=False)
                     if cleaned:
-                        print(cleaned, partial.sentiment)
                         yield AgentResponse(
-                            content=cleaned, sentiment=partial.sentiment
+                            content=cleaned, sentiment=updated_sentiment
                         )
-
-    except (AttributeError, TypeError, ValueError, RuntimeError) as e:
-        raise LlmResponseException(
-            message="Error streaming stakeholder agent response",
-            details={"error": str(e)},
-        )
     except Exception as e:
         raise LlmResponseException(
             message="Unexpected error streaming stakeholder agent response",
             details={"error": str(e)},
         )
+
+
+def compute_sentiment_delta(message: str, listening_cues: "ListeningCues") -> float:
+    """
+    Analyze message for listening cues and sum their scores to produce a sentiment delta.
+    """
+    delta = 0.0
+    lowered = message.lower()
+    for cues in listening_cues.cues.values():
+        for cue in cues:
+            if cue.cue.lower() in lowered:
+                delta += cue.score
+    return delta
