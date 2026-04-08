@@ -84,6 +84,45 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     def stakeholder_system_prompt(ctx: RunContext[AgentDependencies]) -> str:
         persona = ctx.deps.persona
         project = ctx.deps.project
+        sentiment_scale = ctx.deps.sentiment_scale
+        listening_cues = ctx.deps.listening_cues
+        instructions = ctx.deps.instructions
+
+        # Current sentiment context
+        current_sentiment = persona.personality.sentiment
+        if current_sentiment is not None:
+            closest_label = min(
+                sentiment_scale.scale,
+                key=lambda e: abs(e.score - current_sentiment),
+            ).label
+            sentiment_context = (
+                f"Your current sentiment toward this conversation is {current_sentiment} ({closest_label}).\n"
+                "Let this influence your tone and willingness to engage — "
+                "a low sentiment means you are frustrated or disengaged, "
+                "a high sentiment means you are enthusiastic and cooperative.\n"
+            )
+        else:
+            sentiment_context = "This is the start of the conversation. Your sentiment is neutral (0).\n"
+
+        # Build sentiment scale description
+        scale_lines = "\n".join(
+            f"  {entry.score}: {entry.label}" for entry in sentiment_scale.scale
+        )
+
+        # Build listening cues description
+        cue_lines = ""
+        for category, cues in listening_cues.cues.items():
+            cue_lines += f"\n  {category.capitalize()} cues:\n"
+            for cue in cues:
+                note_str = f" ({cue.note})" if cue.note else ""
+                cue_lines += f"    - {cue.cue} (score: {cue.score}){note_str}\n"
+
+        # Build instructions
+        instruction_lines = "\n".join(
+            f"  - {inst}" for inst in instructions.instructions
+        )
+        notes_str = f"\nNotes: {instructions.notes}" if instructions.notes else ""
+
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
             f"Background: {persona.background}\n"
@@ -97,7 +136,17 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
             f"- Focus: {persona.personality.focus}\n\n"
             "Communication Rules:\n"
             f"- Avoid: {persona.communication_rules.avoid}\n\n"
-            "Respond naturally as this stakeholder would, considering the conversation history."
+            "Respond naturally as this stakeholder would, considering the conversation history.\n\n"
+            "--- SENTIMENT EVALUATION ---\n"
+            f"Current Sentiment State:\n{sentiment_context}\n"
+            f"{sentiment_scale.purpose}\n"
+            f"Sentiment scale:\n{scale_lines}\n\n"
+            f"{listening_cues.purpose}\n"
+            f"Outcome: {listening_cues.outcome}\n"
+            f"Listening cues:{cue_lines}\n"
+            f"{instructions.purpose}\n"
+            f"Instructions:\n{instruction_lines}\n"
+            f"{notes_str}\n\n"
         )
 
     # nested cast to ensure type safety(safe for mypy in CI/CD pipeline)
@@ -152,6 +201,7 @@ async def run_stakeholder_query_stream(
                 if delta:
                     cleaned = strip_think_tags(delta, strip_whitespace=False)
                     if cleaned:
+                        print(cleaned, partial.sentiment)
                         yield AgentResponse(
                             content=cleaned, sentiment=partial.sentiment
                         )
