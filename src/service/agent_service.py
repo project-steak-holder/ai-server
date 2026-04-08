@@ -23,6 +23,7 @@ from src.service.history_compactor_service import HistoryCompactorService
 from src.service.model_service import ModelService
 from src.service.message_service import MessageService
 from src.agents.stakeholder_agent import (
+    AgentResponse,
     run_stakeholder_query_stream as _run_stakeholder_query_stream,
 )
 
@@ -132,7 +133,7 @@ class AgentService:
     @wide_event("run_stakeholder_query_stream")
     async def run_stakeholder_query_stream(
         self, content: str, history: list[Message], persona: Persona
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[AgentResponse, None]:
         """Load context, compact history, and stream agent response chunks."""
         project = self.load_project()
         sentiment_scale = self.load_sentiment_scale()
@@ -180,42 +181,28 @@ class AgentService:
             async for chunk in self.run_stakeholder_query_stream(
                 content, history, persona_with_sentiment
             ):
-                # Enforce strict JSON dict format with 'content' (and optionally 'sentiment')
                 try:
-                    if not isinstance(chunk, str):
+                    if not isinstance(chunk, AgentResponse):
                         raise LlmResponseException(
-                            message="Agent stream chunk is not a string",
+                            message="Agent stream chunk is not an AgentResponse",
                             details={"chunk_type": str(type(chunk))},
                         )
-                    chunk_obj = json.loads(chunk)
-                    if not isinstance(chunk_obj, dict) or "content" not in chunk_obj:
-                        raise LlmResponseException(
-                            message="Agent stream chunk missing required 'content' field",
-                            details={"chunk": chunk},
-                        )
-                except (json.JSONDecodeError, TypeError) as e:
-                    raise LlmResponseException(
-                        message="Agent stream chunk is not valid JSON",
-                        details={"chunk": chunk, "error": str(e)},
-                    )
                 except (httpx.ReadError, httpcore.ReadError) as e:
                     raise LlmResponseException(
                         message="I'm sorry, there was a network error connecting to the AI provider. Please try again.",
                         details={"error": str(e)},
                     )
-                chunk_content = chunk_obj["content"]
-                sentiment_delta = chunk_obj.get("sentiment")
-                full_response += chunk_content
-                if sentiment_delta is not None:
-                    last_sentiment_delta = sentiment_delta
-                yield f"data: {json.dumps({'content': chunk_content, 'partial': True})}\n\n"
+                full_response += chunk.content
+                if chunk.sentiment is not None:
+                    last_sentiment_delta = chunk.sentiment
+                yield f"data: {json.dumps({'content': chunk.content, 'partial': True})}\n\n"
             add_event_context(ai_response_length=len(full_response))
 
             # Apply the last sentiment delta seen in the stream (if any)
             await self.sentiment_service.apply_delta(
                 conversation_id, last_sentiment_delta
             )
-            yield f"data: {json.dumps({'complete': True})}\n\n"
+            yield f"data: {json.dumps({'content': full_response, 'sentiment': last_sentiment_delta, 'complete': True})}\n\n"
 
         except LlmResponseException as e:
             full_response = (

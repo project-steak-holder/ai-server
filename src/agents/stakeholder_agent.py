@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
 from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import wide_event
@@ -56,17 +58,20 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     # Get environment variables
     api_base_url = os.environ.get("AI_PROVIDER_BASE_URL", "")
     api_key = os.environ.get("AI_PROVIDER_API_KEY", "")
-    model_name = os.environ.get("AI_PROVIDER_MODEL", "llama3.1:8b")
+    model_name = os.environ.get("AI_PROVIDER_MODEL", "gemini-2.5-flash")
 
-    provider = OpenAIProvider(
-        base_url=api_base_url,
-        api_key=api_key,
-    )
-
-    model = OpenAIChatModel(
-        model_name=model_name,
-        provider=provider,
-    )
+    if model_name.startswith("gemini"):
+        provider = GoogleProvider(api_key=api_key)
+        model = GoogleModel(model_name=model_name, provider=provider)
+    else:
+        openai_provider = OpenAIProvider(
+            base_url=api_base_url,
+            api_key=api_key,
+        )
+        model = OpenAIChatModel(
+            model_name=model_name,
+            provider=openai_provider,
+        )
 
     agent = Agent(
         model=model,
@@ -120,8 +125,8 @@ async def run_stakeholder_query_stream(
     sentiment_scale: SentimentScale,
     listening_cues: ListeningCues,
     instructions: InstructionsModel,
-) -> AsyncGenerator[str, None]:
-    """Yield text chunks directly - maintain layer consistency."""
+) -> AsyncGenerator[AgentResponse, None]:
+    """Yield AgentResponse objects as structured output streams in."""
     agent = get_stakeholder_agent()
 
     deps = AgentDependencies(
@@ -133,13 +138,23 @@ async def run_stakeholder_query_stream(
         instructions=instructions,
     )
 
+    prev_content = ""
     try:
         async with agent.run_stream(
-            user_prompt=message, deps=deps, message_history=history, output_type=str
+            user_prompt=message, deps=deps, message_history=history
         ) as streamed_result:
-            async for chunk in streamed_result.stream_text(delta=True):
-                # Clean each chunk before yielding (remove think tags only, preserve whitespace)
-                yield strip_think_tags(chunk, strip_whitespace=False)
+            async for partial in streamed_result.stream_output(debounce_by=0.05):
+                # stream_output yields partial AgentResponse objects as they build up
+                # Extract only the new content delta
+                current_content = partial.content if partial.content else ""
+                delta = current_content[len(prev_content) :]
+                prev_content = current_content
+                if delta:
+                    cleaned = strip_think_tags(delta, strip_whitespace=False)
+                    if cleaned:
+                        yield AgentResponse(
+                            content=cleaned, sentiment=partial.sentiment
+                        )
 
     except (AttributeError, TypeError, ValueError, RuntimeError) as e:
         raise LlmResponseException(

@@ -17,6 +17,8 @@ from pydantic_ai import (
 )
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
 from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message, MessageType
@@ -25,17 +27,18 @@ from src.schemas.message_model import Message, MessageType
 # Read LLM credentials and config from environment
 api_base_url = os.environ.get("AI_PROVIDER_BASE_URL", "")
 api_key = os.environ.get("AI_PROVIDER_API_KEY", "")
-main_model_name = os.environ.get("AI_PROVIDER_MODEL", "llama3.1:8b")
+main_model_name = os.environ.get("AI_PROVIDER_MODEL", "gemini-2.5-flash")
 
-provider = OpenAIProvider(
-    base_url=api_base_url,
-    api_key=api_key,
-)
-
-summarize_model = OpenAIChatModel(
-    model_name=main_model_name,
-    provider=provider,
-)
+if main_model_name.startswith("gemini"):
+    summarize_model = GoogleModel(
+        model_name=main_model_name,
+        provider=GoogleProvider(api_key=api_key),
+    )
+else:
+    summarize_model = OpenAIChatModel(
+        model_name=main_model_name,
+        provider=OpenAIProvider(base_url=api_base_url, api_key=api_key),
+    )
 
 # Use less expensive (by token count) model to summarize old messages.
 summarize_agent = Agent(
