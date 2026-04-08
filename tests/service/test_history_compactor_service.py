@@ -25,7 +25,7 @@ def mock_summarize_agent_run_with_five_messages(monkeypatch):
         ]
         self.summarize_agent.run.return_value = mock_result
 
-    HistoryCompactorService.setup_agent = setup_agent
+    HistoryCompactorService.setup_agent = setup_agent  # type: ignore[attr-defined]
     yield
 
 
@@ -42,7 +42,7 @@ async def test_summarize_old_messages_no_needed_summarization():
         for i in range(5)
     ]
     svc = HistoryCompactorService()
-    svc.setup_agent()
+    svc.setup_agent()  # type: ignore[attr-defined]
     result = await svc.summarize_old_messages(messages)
     assert len(result) == 5
     assert all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in result)
@@ -61,7 +61,7 @@ async def test_summarize_old_messages_with_summarization():
         for i in range(15)
     ]
     svc = HistoryCompactorService()
-    svc.setup_agent()
+    svc.setup_agent()  # type: ignore[attr-defined]
     result = await svc.summarize_old_messages(messages)
     assert len(result) == 11  # summary + 10 recent
     assert all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in result)
