@@ -22,7 +22,5 @@ class SentimentRepository(BaseCRUDRepository[Sentiment]):
         if sentiment:
             sentiment.sentiment = new_value
         else:
-            sentiment = Sentiment(
-                conversation_id=conversation_id, sentiment=new_value
-            )
+            sentiment = Sentiment(conversation_id=conversation_id, sentiment=new_value)
         return await self.update(sentiment)

@@ -8,7 +8,7 @@ with DI at container launch
 """
 
 from pydantic import BaseModel, ConfigDict
-from typing import List, Optional
+from typing import List
 
 
 class ExpertiseLevel(BaseModel):

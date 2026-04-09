@@ -16,7 +16,7 @@ from pydantic_ai import (
     UserPromptPart,
 )
 
-from pydantic_ai.models.google import GoogleModel, GoogleModelSettings
+from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
 from src.middlewares.events import add_event_context, wide_event
