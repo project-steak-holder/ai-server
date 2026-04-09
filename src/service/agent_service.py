@@ -5,7 +5,7 @@ persistence, persona, project context, and LLM interaction for a project stakeho
 """
 
 import json
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 from pydantic_ai import ModelMessage
 from pydantic import ValidationError
 import httpx
@@ -22,6 +22,7 @@ from src.schemas.instructions_model import InstructionsModel
 from src.service.history_compactor_service import HistoryCompactorService
 from src.service.model_service import ModelService
 from src.service.message_service import MessageService
+from src.service.sentiment_service import SentimentService
 from src.agents.stakeholder_agent import (
     AgentResponse,
     run_stakeholder_query_stream as _run_stakeholder_query_stream,
@@ -35,51 +36,35 @@ class AgentService:
         self,
         model_service: ModelService,
         message_service: MessageService,
-        sentiment_service,
+        sentiment_service: SentimentService,
     ) -> None:
         self.model_service: ModelService = model_service
         self.message_service: MessageService = message_service
-        self.sentiment_service = sentiment_service
-        self.request: Optional[str] = None
-        self.conversation_id: Optional[str] = None
+        self.sentiment_service: SentimentService = sentiment_service
 
     def load_persona(self) -> Persona:
         """loads persona model from model service"""
-        result = self.model_service.get_model("persona")
-
-        if not isinstance(result, Persona):
-            raise TypeError(f"Expected Persona, got {type(result).__name__}")
+        result = self.model_service.get_model("persona", Persona)
         add_event_context(persona_name=result.name)
         return result
 
     def load_project(self) -> Project:
         """loads project model from model service"""
-        result = self.model_service.get_model("project")
-        if not isinstance(result, Project):
-            raise TypeError(f"Expected Project, got {type(result).__name__}")
+        result = self.model_service.get_model("project", Project)
         add_event_context(project_name=result.project_name)
         return result
 
-    def load_sentiment_scale(self):
+    def load_sentiment_scale(self) -> SentimentScale:
         """loads sentiment_scale model from model service"""
-        result = self.model_service.get_model("sentiment_scale")
-        if not isinstance(result, SentimentScale):
-            raise TypeError(f"Expected SentimentScale, got {type(result).__name__}")
-        return result
+        return self.model_service.get_model("sentiment_scale", SentimentScale)
 
-    def load_listening_cues(self):
+    def load_listening_cues(self) -> ListeningCues:
         """loads listening_cues model from model service"""
-        result = self.model_service.get_model("listening_cues")
-        if not isinstance(result, ListeningCues):
-            raise TypeError(f"Expected ListeningCues, got {type(result).__name__}")
-        return result
+        return self.model_service.get_model("listening_cues", ListeningCues)
 
-    def load_instructions(self):
+    def load_instructions(self) -> InstructionsModel:
         """loads instructions model from model service"""
-        result = self.model_service.get_model("instructions")
-        if not isinstance(result, InstructionsModel):
-            raise TypeError(f"Expected InstructionsModel, got {type(result).__name__}")
-        return result
+        return self.model_service.get_model("instructions", InstructionsModel)
 
     async def load_history(self, user_id: str, conversation_id: str) -> list[Message]:
         """loads from message service"""
@@ -93,14 +78,6 @@ class AgentService:
             ]
         except ValidationError as ve:
             raise Exception(f"Validation error in message history: {ve}") from ve
-
-    def set_request(self, request: str) -> None:
-        """set from request payload in orchestrator method"""
-        self.request = request
-
-    def set_conversation_id(self, conversation_id: str) -> None:
-        """set from request payload in orchestrator method"""
-        self.conversation_id = conversation_id
 
     @wide_event("save_user_message")
     async def save_user_message(
@@ -139,9 +116,11 @@ class AgentService:
         sentiment_scale = self.load_sentiment_scale()
         listening_cues = self.load_listening_cues()
         instructions = self.load_instructions()
+
         compacted_history: list[
             ModelMessage
         ] = await HistoryCompactorService().summarize_old_messages(history)
+
         async for chunk in _run_stakeholder_query_stream(
             message=content,
             persona=persona,

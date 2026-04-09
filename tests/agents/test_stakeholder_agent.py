@@ -174,7 +174,7 @@ def test_create_stakeholder_agent_builds_prompt(
     assert callable(prompt_fn), f"Expected a callable, got {type(prompt_fn)}"
     prompt = prompt_fn(ctx)
 
-    assert f"You are {sample_persona.name}" in prompt
+    assert f"You are {sample_persona.name}" in prompt  # type: ignore
     assert sample_project.project_name in prompt
     assert captured["provider_kwargs"]["base_url"] == "http://ai.local"
     assert captured["model_kwargs"]["model_name"] == "gemini-2.5-flash"

@@ -70,19 +70,6 @@ async def test_load_history(agent_service, mock_message_service):
     assert history == mock_history
 
 
-def test_set_request(agent_service):
-    """test capturing request"""
-    request = "What are the project requirements?"
-    agent_service.set_request(request)
-    assert agent_service.request == request
-
-
-def test_set_conversation_id(agent_service):
-    """test capturing conversation id"""
-    agent_service.set_conversation_id("conv-123")
-    assert agent_service.conversation_id == "conv-123"
-
-
 @pytest.mark.anyio
 async def test_process_agent_query_stream_success(agent_service):
     """Test process_agent_query_stream with PydanticAI streaming."""
@@ -338,7 +325,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
                 "cue2": [ListeningCue(cue="desc2", score=1.0)],
             },
         )
-        mock_model_service.get_model.side_effect = lambda name: (
+        mock_model_service.get_model.side_effect = lambda name, expected_type=None: (
             persona
             if name == "persona"
             else project

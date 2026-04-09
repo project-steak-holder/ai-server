@@ -5,7 +5,7 @@ Now uses a registry and cache for extensibility.
 
 import os
 import json
-from typing import Union, TypedDict, Type
+from typing import Union, TypedDict, Type, overload
 from pydantic import ValidationError
 
 from src.exceptions.context_load_exception import ContextLoadException
@@ -111,22 +111,27 @@ class ModelService:
                 message=f"Unexpected error loading {model_name} context"
             ) from cle
 
+    @overload
+    def get_model[T: ModelType](self, model_name: str, expected_type: Type[T]) -> T: ...
+    @overload
+    def get_model(self, model_name: str) -> ModelType: ...
+
     @wide_event("get_model")
-    def get_model(self, model_name: str) -> ModelType:
+    def get_model[T: ModelType](
+        self, model_name: str, expected_type: Type[T] | None = None
+    ) -> ModelType | T:
         """
-        Returns cached model instance
-        lazy loads as needed
-        Preferred accessor method (use from agent_service)
-        Args:
-            model_name: e.g. 'persona', 'project', etc.
-        Returns:
-            The cached or newly loaded model instance
+        Returns cached model instance, lazy loads as needed.
+        If expected_type is provided, validates the type and returns it narrowed.
         """
-        if model_name in self.__class__._cache:
-            return self.__class__._cache[model_name]
-        # if not cached
-        self._load_model(model_name)
-        return self.__class__._cache[model_name]
+        if model_name not in self.__class__._cache:
+            self._load_model(model_name)
+        result = self.__class__._cache[model_name]
+        if expected_type is not None and not isinstance(result, expected_type):
+            raise TypeError(
+                f"Expected {expected_type.__name__}, got {type(result).__name__}"
+            )
+        return result
 
     def list_models(self) -> list[str]:
         """Returns a list of all registered model names."""

@@ -227,7 +227,7 @@ def agent_service(mock_message_service):
         ],
     )
     # Do not mock protected member _load_model; only mock public interface
-    mock_model_service.get_model.side_effect = lambda name: (
+    mock_model_service.get_model.side_effect = lambda name, expected_type=None: (
         persona
         if name == "persona"
         else project
