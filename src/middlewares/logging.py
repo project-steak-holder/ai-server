@@ -18,3 +18,7 @@ def setup_logger():
         handler = AxiomHandler(client, dataset=dataset)
         handler.setLevel(logging.INFO)
         logger.addHandler(handler)
+    else:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        logger.addHandler(console_handler)
