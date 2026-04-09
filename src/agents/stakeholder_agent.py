@@ -47,6 +47,10 @@ class AgentResponse(BaseModel):
         default=None,
         description="The updated sentiment value after this message, if available.",
     )
+    detected_cues: Optional[list[str]] = Field(
+        default=None,
+        description="List of listening cue names detected in the user message.",
+    )
 
 
 # Initialize PydanticAI Agent
@@ -166,12 +170,6 @@ async def run_stakeholder_query_stream(
     """Yield AgentResponse objects as structured output streams in."""
     agent = get_stakeholder_agent()
 
-    # Compute sentiment delta and updated value
-    sentiment_delta = compute_sentiment_delta(message, listening_cues)
-    orig_sentiment = persona.personality.sentiment or 0.0
-    updated_sentiment = max(-10.0, min(10.0, orig_sentiment + sentiment_delta))
-    persona.personality.sentiment = updated_sentiment
-
     deps = AgentDependencies(
         persona=persona,
         project=project,
@@ -182,35 +180,23 @@ async def run_stakeholder_query_stream(
     )
 
     prev_content = ""
+    last_sentiment = None
     try:
         async with agent.run_stream(
             user_prompt=message, deps=deps, message_history=history
         ) as streamed_result:
-            async for partial in streamed_result.stream_output(debounce_by=0.05):
-                current_content = partial.content if partial.content else ""
-                delta = current_content[len(prev_content) :]
+            async for partial in streamed_result.stream_output(debounce_by=0.15):
+                current_content = partial.content or ""
+                delta = current_content.removeprefix(prev_content)
                 prev_content = current_content
+                if partial.sentiment is not None:
+                    last_sentiment = partial.sentiment
                 if delta:
                     cleaned = strip_think_tags(delta, strip_whitespace=False)
                     if cleaned:
-                        yield AgentResponse(
-                            content=cleaned, sentiment=updated_sentiment
-                        )
+                        yield AgentResponse(content=cleaned, sentiment=last_sentiment)
     except Exception as e:
         raise LlmResponseException(
             message="Unexpected error streaming stakeholder agent response",
             details={"error": str(e)},
         )
-
-
-def compute_sentiment_delta(message: str, listening_cues: "ListeningCues") -> float:
-    """
-    Analyze message for listening cues and sum their scores to produce a sentiment delta.
-    """
-    delta = 0.0
-    lowered = message.lower()
-    for cues in listening_cues.cues.values():
-        for cue in cues:
-            if cue.cue.lower() in lowered:
-                delta += cue.score
-    return delta
