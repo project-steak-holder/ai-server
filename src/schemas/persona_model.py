@@ -33,9 +33,7 @@ class Personality(BaseModel):
     tone: List[str]
     professionalism: str
     focus: PersonalityFocus
-    sentiment: Optional[float] = (
-        None  # Current sentiment score for the conversation (decimal to hundredths)
-    )
+    sentiment: float = 0.00
     model_config = ConfigDict(extra="allow", frozen=True)
 
 

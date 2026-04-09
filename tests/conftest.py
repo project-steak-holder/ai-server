@@ -221,7 +221,7 @@ def agent_service(mock_message_service):
             "9. Update the persona's sentiment field with the updated_sentiment value before generating the response.",
             "10. Use the updated persona (including the new sentiment) as the basis for generating the response, ensuring the tone matches the sentiment label.",
             "11. Generate a response message using the updated sentiment label for tone.",
-            "12. Return only the following structured output: { 'message': <response>, 'sentiment_delta': <decimal> }.",
+            "12. Return only the following structured output: { 'message': <response>, 'sentiment_delta': <float> }.",
             "13. Do not include any internal reasoning, <think> tags, or cues in the output; only return the structured response.",
             "14. If the output cannot be generated as specified, set sentiment_delta = 0.00 and return an appropriate message.",
         ],

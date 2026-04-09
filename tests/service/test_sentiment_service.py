@@ -3,7 +3,7 @@ Unit tests for SentimentService.
 """
 
 import pytest
-from decimal import Decimal
+
 from unittest.mock import AsyncMock, MagicMock
 from src.models.sentiment import Sentiment
 
@@ -21,7 +21,7 @@ async def test_get_sentiment(sentiment_data_service, mock_sentiment_repository):
 @pytest.mark.anyio
 async def test_update_sentiment(sentiment_data_service, mock_sentiment_repository):
     conversation_id = "conv-456"
-    new_value = Decimal("3.14")
+    new_value = "3.14"
     sentiment_obj = MagicMock(spec=Sentiment)
     mock_sentiment_repository.update_sentiment.return_value = sentiment_obj
     result = await sentiment_data_service.update_sentiment(conversation_id, new_value)
@@ -36,7 +36,7 @@ async def test_update_sentiment_not_found(
     sentiment_data_service, mock_sentiment_repository
 ):
     conversation_id = "conv-789"
-    new_value = Decimal("-2.71")
+    new_value = "-2.71"
     mock_sentiment_repository.update_sentiment.return_value = None
     result = await sentiment_data_service.update_sentiment(conversation_id, new_value)
     mock_sentiment_repository.update_sentiment.assert_awaited_once_with(

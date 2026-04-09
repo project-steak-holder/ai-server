@@ -20,7 +20,7 @@ class Sentiment(Base):
         nullable=False,
     )
     sentiment: Mapped[float] = mapped_column(
-        Numeric(4, 2),
+        Numeric(4, 2, asdecimal=False),
         nullable=False,
         default=0.00,
     )
