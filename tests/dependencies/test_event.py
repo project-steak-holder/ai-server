@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.dependencies.event import get_wide_event
+from src.dependencies import get_wide_event
 from tests.helpers import make_request
 
 

@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from src.controllers.ai_controller_v2 import generate_stream
 from src.schemas.ai import GenerateRequest
-from src.dependencies.user import AuthenticatedUser
+from src.dependencies import AuthenticatedUser
 
 
 @pytest.mark.anyio
