@@ -8,10 +8,6 @@ import json
 from typing import AsyncGenerator
 from pydantic_ai import ModelMessage
 from pydantic import ValidationError
-import httpx
-import httpcore
-
-from src.exceptions.llm_response_exception import LlmResponseException
 from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message
 from src.schemas.persona_model import Persona
@@ -134,72 +130,62 @@ class AgentService:
 
     @wide_event("process_agent_query_stream")
     async def process_agent_query_stream(
-        self, user_id: str, conversation_id: str, content: str
+        self,
+        user_id: str,
+        conversation_id: str,
+        content: str,
     ) -> AsyncGenerator[str, None]:
         """Stream agent response maintaining architectural consistency, with robust error handling for history loading."""
 
         history = await self.load_history(
-            user_id=user_id, conversation_id=conversation_id
+            user_id=user_id,
+            conversation_id=conversation_id,
         )
 
         await self.save_user_message(
-            user_id=user_id, conversation_id=conversation_id, content=content
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
         )
 
-        # Get persona copy with sentiment injected
-        persona = self.load_persona()
         persona_with_sentiment = (
             await self.sentiment_service.get_persona_w_current_sentiment(
-                persona, conversation_id
+                conversation_id=conversation_id,
             )
         )
 
         full_response = ""
-        last_sentiment = None
+        last_sentiment = 0.00
         try:
             async for chunk in self.run_stakeholder_query_stream(
-                content, history, persona_with_sentiment
+                content,
+                history,
+                persona_with_sentiment,
             ):
-                try:
-                    if not isinstance(chunk, AgentResponse):
-                        raise LlmResponseException(
-                            message="Agent stream chunk is not an AgentResponse",
-                            details={"chunk_type": str(type(chunk))},
-                        )
-                except (httpx.ReadError, httpcore.ReadError) as e:
-                    raise LlmResponseException(
-                        message="I'm sorry, there was a network error connecting to the AI provider. Please try again.",
-                        details={"error": str(e)},
-                    )
-                full_response += chunk.content
                 if chunk.sentiment is not None:
                     last_sentiment = chunk.sentiment
-                yield f"data: {json.dumps({'content': chunk.content, 'partial': True})}\n\n"
+                if chunk.content:
+                    full_response += chunk.content
+                    yield f"data: {json.dumps({'content': chunk.content, 'partial': True})}\n\n"
 
             add_event_context(ai_response_length=len(full_response))
-            # persist last updated sentiment value seen in stream
-            if last_sentiment is not None:
-                await self.sentiment_service.update_sentiment(
-                    conversation_id, last_sentiment
-                )
-            # yield final response
-            yield f"data: {json.dumps({'content': full_response, 'sentiment': last_sentiment, 'complete': True})}\n\n"
-
-        except LlmResponseException as e:
-            full_response = (
-                e.message
-                if hasattr(e, "message") and e.message
-                else "I'm sorry, I encountered an error and was unable to respond."
-            )
-            add_event_context(error_message=str(e))
-            yield f"data: {json.dumps({'content': full_response, 'partial': True})}\n\n"
+            yield f"data: {json.dumps({'content': full_response, 'complete': True})}\n\n"
 
         except Exception as e:
             full_response = "I'm sorry, I encountered an unexpected error and was unable to respond."
-            add_event_context(error_message=str(e))
-            yield f"data: {json.dumps({'content': full_response, 'partial': True})}\n\n"
+            add_event_context(
+                error_type=type(e).__name__,
+                error_message=str(e.__cause__) if e.__cause__ else str(e),
+            )
+            yield f"data: {json.dumps({'content': full_response, 'error': True, 'complete': True})}\n\n"
 
         finally:
             await self.save_ai_message(
-                user_id=user_id, conversation_id=conversation_id, content=full_response
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=full_response,
+            )
+            await self.sentiment_service.update_sentiment(
+                conversation_id=conversation_id,
+                new_value=last_sentiment,
             )

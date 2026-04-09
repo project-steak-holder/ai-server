@@ -247,13 +247,27 @@ def agent_service(mock_message_service):
     mock_sentiment_service.update_sentiment = AsyncMock(return_value=None)
     # Ensure get_persona_w_current_sentiment is always an AsyncMock
     mock_sentiment_service.get_persona_w_current_sentiment = AsyncMock(
-        return_value=None
+        return_value=persona
     )
     return AgentService(
         model_service=mock_model_service,
         message_service=mock_message_service,
         sentiment_service=mock_sentiment_service,
     )
+
+
+@pytest.fixture
+def mock_compactor():
+    """Mock HistoryCompactorService to avoid API key requirement in tests."""
+    from unittest.mock import patch
+
+    instance = MagicMock()
+    instance.summarize_old_messages = AsyncMock(return_value=[])
+    with patch(
+        "src.service.agent_service.HistoryCompactorService",
+        return_value=instance,
+    ):
+        yield instance
 
 
 @pytest.fixture

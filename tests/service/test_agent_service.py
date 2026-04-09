@@ -6,9 +6,9 @@ unit tests for agent_service
 
 import pytest
 import uuid
-from decimal import Decimal
+
 from unittest.mock import patch, AsyncMock, MagicMock
-from src.service.agent_service import LlmResponseException
+from src.exceptions.llm_response_exception import LlmResponseException
 from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
@@ -71,7 +71,7 @@ async def test_load_history(agent_service, mock_message_service):
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_success(agent_service):
+async def test_process_agent_query_stream_success(agent_service, mock_compactor):
     """Test process_agent_query_stream with PydanticAI streaming."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -84,6 +84,7 @@ async def test_process_agent_query_stream_success(agent_service):
             parts=[TextPart(content="We have mountain bikes and road bikes.")]
         ),
     ]
+    mock_compactor.summarize_old_messages.return_value = compacted_history
 
     # Mock streaming chunks as AgentResponse objects
     from src.agents.stakeholder_agent import AgentResponse
@@ -97,13 +98,7 @@ async def test_process_agent_query_stream_success(agent_service):
         for chunk in chunks:
             yield chunk
 
-    # Patch the compactor and run_stakeholder_query_stream
     with (
-        patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=compacted_history,
-        ) as mock_compact,
         patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
@@ -121,7 +116,7 @@ async def test_process_agent_query_stream_success(agent_service):
         patch.object(
             agent_service.sentiment_service,
             "get_current_sentiment_value",
-            new=AsyncMock(return_value=Decimal("0.0")),
+            new=AsyncMock(return_value=0.0),
         ),
         patch.object(agent_service.sentiment_service, "apply_delta", new=AsyncMock()),
     ):
@@ -158,7 +153,7 @@ async def test_process_agent_query_stream_success(agent_service):
             chunks.append(chunk)
 
         # Verify compactor and streaming agent were called
-        mock_compact.assert_called_once()
+        mock_compactor.summarize_old_messages.assert_called_once()
         mock_run_stream.assert_called_once()
 
         # Verify we got SSE formatted chunks + completion
@@ -191,18 +186,15 @@ async def test_process_agent_query_stream_success(agent_service):
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_handles_llm_error(agent_service):
+async def test_process_agent_query_stream_handles_llm_error(
+    agent_service, mock_compactor
+):
     """Test process_agent_query_stream saves error message and yields SSE error event."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
     content = "Test message"
 
     with (
-        patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ) as mock_compact,
         patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             side_effect=LlmResponseException(
@@ -212,7 +204,7 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         patch.object(
             agent_service.sentiment_service,
             "get_current_sentiment_value",
-            new=AsyncMock(return_value=Decimal("0.0")),
+            new=AsyncMock(return_value=0.0),
         ),
     ):
         chunks = []
@@ -229,9 +221,14 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         import json
 
         error_data = json.loads(chunks[0][6:-2])  # Remove "data: " and "\n\n"
-        assert error_data["content"] == "LLM streaming timeout"
+        assert (
+            error_data["content"]
+            == "I'm sorry, I encountered an unexpected error and was unable to respond."
+        )
+        assert error_data["error"] is True
+        assert error_data["complete"] is True
 
-        mock_compact.assert_called_once()
+        mock_compactor.summarize_old_messages.assert_called_once()
         mock_run_stream.assert_called_once()
 
         # Verify user message was saved
@@ -243,12 +240,14 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         agent_service.message_service.save_ai_message.assert_called_once_with(
             user_id=user_id,
             conversation_id=conversation_id,
-            content="LLM streaming timeout",
+            content="I'm sorry, I encountered an unexpected error and was unable to respond.",
         )
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_preserves_context_loading(agent_service):
+async def test_process_agent_query_stream_preserves_context_loading(
+    agent_service, mock_compactor
+):
     """Test that streaming preserves the same context loading as non-streaming."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -260,11 +259,6 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
 
     with (
         patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ) as mock_compact,
-        patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
@@ -272,7 +266,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         patch.object(
             agent_service.sentiment_service,
             "get_current_sentiment_value",
-            new=AsyncMock(return_value=Decimal("0.0")),
+            new=AsyncMock(return_value=0.0),
         ),
     ):
         # Patch the mock_model_service to return real Persona/Project for get_model
@@ -355,17 +349,18 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         ):
             pass
 
-        # Verify model_service.get_model was called for persona and project
+        # Verify model_service.get_model was called for project
         calls = [call[0][0] for call in mock_model_service.get_model.call_args_list]
-        assert "persona" in calls
         assert "project" in calls
 
         # Verify compaction was called
-        mock_compact.assert_called_once()
+        mock_compactor.summarize_old_messages.assert_called_once()
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_accumulates_full_response(agent_service):
+async def test_process_agent_query_stream_accumulates_full_response(
+    agent_service, mock_compactor
+):
     """Test that streaming accumulates chunks into complete response for database save."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -387,11 +382,6 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
 
     with (
         patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ),
-        patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
@@ -408,7 +398,7 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
         patch.object(
             agent_service.sentiment_service,
             "get_current_sentiment_value",
-            new=AsyncMock(return_value=Decimal("0.0")),
+            new=AsyncMock(return_value=0.0),
         ),
         patch.object(agent_service.sentiment_service, "apply_delta", new=AsyncMock()),
     ):
@@ -452,7 +442,7 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
 
 
 @pytest.mark.anyio
-async def test_streaming_sentiment_absolute(agent_service):
+async def test_streaming_sentiment_absolute(agent_service, mock_compactor):
     """Streaming: LLM returns absolute sentiment (should persist it directly)."""
     user_id = "user5"
     conversation_id = uuid.uuid4()
@@ -493,11 +483,6 @@ async def test_streaming_sentiment_absolute(agent_service):
 
     with (
         patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ),
-        patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_stream(),
         ),
@@ -523,11 +508,15 @@ async def test_streaming_sentiment_absolute(agent_service):
             content=content,
         ):
             pass
-        mock_update_sentiment.assert_awaited_with(conversation_id, 10.0)
+        mock_update_sentiment.assert_awaited_with(
+            conversation_id=conversation_id, new_value=10.0
+        )
 
 
 @pytest.mark.anyio
-async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
+async def test_streaming_next_turn_uses_updated_sentiment(
+    agent_service, mock_compactor
+):
     """Streaming: Next turn uses updated sentiment from DB."""
     user_id = "user6"
     conversation_id = uuid.uuid4()
@@ -570,11 +559,6 @@ async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
 
     with (
         patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ),
-        patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_stream1(),
         ),
@@ -600,7 +584,9 @@ async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
             content=content,
         ):
             pass
-        mock_update_sentiment.assert_awaited_with(conversation_id, 2.0)
+        mock_update_sentiment.assert_awaited_with(
+            conversation_id=conversation_id, new_value=2.0
+        )
 
     # Second turn: agent returns absolute sentiment -1.0
     async def mock_stream2():
@@ -614,11 +600,6 @@ async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
     )
 
     with (
-        patch(
-            "src.service.history_compactor_service.HistoryCompactorService.summarize_old_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ),
         patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_stream2(),
@@ -645,4 +626,6 @@ async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
             content=content,
         ):
             pass
-        mock_update_sentiment.assert_awaited_with(conversation_id, -1.0)
+        mock_update_sentiment.assert_awaited_with(
+            conversation_id=conversation_id, new_value=-1.0
+        )
