@@ -4,7 +4,7 @@ Unit tests for PydanticAI Stakeholder Agent.
 
 import pytest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import os
 from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
 
@@ -208,6 +208,9 @@ async def test_run_stakeholder_query_stream_success(
     mock_streamed_result.stream_output = make_stream_output(
         ["I think ", "we should ", "focus on ", "quality bikes."]
     )
+    mock_streamed_result.get_output = AsyncMock(
+        return_value=AgentResponse(content="I think we should focus on quality bikes.")
+    )
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
         mock_agent = MagicMock()
@@ -278,6 +281,9 @@ async def test_run_stakeholder_query_stream_with_empty_history(
             yield DummyPartial(prev)
 
     mock_streamed_result.stream_output = stream_output
+    mock_streamed_result.get_output = AsyncMock(
+        return_value=AgentResponse(content="Hello! How can I help?")
+    )
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
         mock_agent = MagicMock()
@@ -376,6 +382,9 @@ async def test_run_stakeholder_query_stream_preserves_streaming_parameters(
             yield DummyPartial(chunk)
 
     mock_streamed_result.stream_output = stream_output
+    mock_streamed_result.get_output = AsyncMock(
+        return_value=AgentResponse(content="test")
+    )
 
     with patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent:
         mock_agent = MagicMock()

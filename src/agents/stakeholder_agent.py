@@ -12,7 +12,7 @@ from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
 from src.exceptions.llm_response_exception import LlmResponseException
-from src.middlewares.events import wide_event
+from src.middlewares.events import add_event_context, wide_event
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
 from src.schemas.sentiment_scale_model import SentimentScale
@@ -195,8 +195,18 @@ async def run_stakeholder_query_stream(
                     cleaned = strip_think_tags(delta, strip_whitespace=False)
                     if cleaned:
                         yield AgentResponse(content=cleaned, sentiment=last_sentiment)
+
+            # After stream completes, check final result for sentiment
+            final = await streamed_result.get_output()
+            add_event_context(
+                final_sentiment=final.sentiment,
+                final_detected_cues=final.detected_cues,
+            )
+            if final.sentiment is not None:
+                last_sentiment = final.sentiment
+                yield AgentResponse(content="", sentiment=last_sentiment)
     except Exception as e:
         raise LlmResponseException(
             message="Unexpected error streaming stakeholder agent response",
-            details={"error": str(e)},
-        )
+            details={"error": str(e), "type": type(e).__name__},
+        ) from e
