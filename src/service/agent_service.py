@@ -180,12 +180,21 @@ class AgentService:
             yield f"data: {json.dumps({'content': full_response, 'error': True, 'complete': True})}\n\n"
 
         finally:
-            await self.save_ai_message(
-                user_id=user_id,
-                conversation_id=conversation_id,
-                content=full_response,
-            )
-            await self.sentiment_service.update_sentiment(
-                conversation_id=conversation_id,
-                new_value=last_sentiment,
-            )
+            for action in (
+                self.save_ai_message(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    content=full_response,
+                ),
+                self.sentiment_service.update_sentiment(
+                    conversation_id=conversation_id,
+                    new_value=last_sentiment,
+                ),
+            ):
+                try:
+                    await action
+                except Exception as e:
+                    add_event_context(
+                        error_type=type(e).__name__,
+                        error_message=str(e.__cause__) if e.__cause__ else str(e),
+                    )
