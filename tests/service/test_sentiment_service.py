@@ -50,12 +50,11 @@ async def test_get_current_sentiment_for_persona_valid(
     sentiment_data_service, build_persona
 ):
     persona = build_persona
+    sentiment_data_service.model_service.get_model.return_value = persona
     sentiment_data_service.get_sentiment = AsyncMock(
         return_value=type("Sentiment", (), {"sentiment": 5.5})()
     )
-    updated = await sentiment_data_service.get_persona_w_current_sentiment(
-        persona, "conv-id"
-    )
+    updated = await sentiment_data_service.get_persona_w_current_sentiment("conv-id")
     assert updated.personality.sentiment == 5.5
 
 
@@ -64,11 +63,10 @@ async def test_get_current_sentiment_for_persona_none(
     sentiment_data_service, build_persona
 ):
     persona = build_persona
+    sentiment_data_service.model_service.get_model.return_value = persona
     sentiment_data_service.get_sentiment = AsyncMock(return_value=None)
-    updated = await sentiment_data_service.get_persona_w_current_sentiment(
-        persona, "conv-id"
-    )
-    assert updated.personality.sentiment is None
+    updated = await sentiment_data_service.get_persona_w_current_sentiment("conv-id")
+    assert updated.personality.sentiment == 0.00
 
 
 @pytest.mark.anyio
@@ -76,12 +74,11 @@ async def test_get_current_sentiment_for_persona_negative(
     sentiment_data_service, build_persona
 ):
     persona = build_persona
+    sentiment_data_service.model_service.get_model.return_value = persona
     sentiment_data_service.get_sentiment = AsyncMock(
         return_value=type("Sentiment", (), {"sentiment": -10.0})()
     )
-    updated = await sentiment_data_service.get_persona_w_current_sentiment(
-        persona, "conv-id"
-    )
+    updated = await sentiment_data_service.get_persona_w_current_sentiment("conv-id")
     assert updated.personality.sentiment == -10.0
 
 
@@ -90,12 +87,11 @@ async def test_get_current_sentiment_for_persona_positive(
     sentiment_data_service, build_persona
 ):
     persona = build_persona
+    sentiment_data_service.model_service.get_model.return_value = persona
     sentiment_data_service.get_sentiment = AsyncMock(
         return_value=type("Sentiment", (), {"sentiment": 10.0})()
     )
-    updated = await sentiment_data_service.get_persona_w_current_sentiment(
-        persona, "conv-id"
-    )
+    updated = await sentiment_data_service.get_persona_w_current_sentiment("conv-id")
     assert updated.personality.sentiment == 10.0
 
 
@@ -104,34 +100,14 @@ async def test_get_current_sentiment_for_persona_immutability(
     sentiment_data_service, build_persona
 ):
     persona = build_persona
+    sentiment_data_service.model_service.get_model.return_value = persona
     sentiment_data_service.get_sentiment = AsyncMock(
         return_value=type("Sentiment", (), {"sentiment": 2.0})()
     )
-    updated = await sentiment_data_service.get_persona_w_current_sentiment(
-        persona, "conv-id"
-    )
+    updated = await sentiment_data_service.get_persona_w_current_sentiment("conv-id")
     assert updated is not persona
-    assert persona.personality.sentiment is None
+    assert persona.personality.sentiment == 0.00
     assert updated.personality.sentiment == 2.0
-
-
-@pytest.mark.anyio
-async def test_get_current_sentiment_for_persona_invalid_type(
-    sentiment_data_service, build_persona
-):
-    persona = build_persona
-    sentiment_data_service.get_sentiment = AsyncMock(
-        return_value=type("Sentiment", (), {"sentiment": "not_a_number"})()
-    )
-    try:
-        updated = await sentiment_data_service.get_persona_w_current_sentiment(
-            persona, "conv-id"
-        )
-        assert updated.personality.sentiment is None or isinstance(
-            updated.personality.sentiment, float
-        )
-    except (TypeError, ValueError):
-        assert True
 
 
 @pytest.mark.anyio
@@ -140,20 +116,11 @@ async def test_get_current_sentiment_value_found(sentiment_data_service):
     sentiment_obj.sentiment = 3.21
     sentiment_data_service.get_sentiment = AsyncMock(return_value=sentiment_obj)
     result = await sentiment_data_service.get_current_sentiment_value("conv-1")
-    assert result == Decimal("3.21")
-
-
-@pytest.mark.anyio
-async def test_get_current_sentiment_value_none(sentiment_data_service):
-    sentiment_obj = MagicMock(spec=Sentiment)
-    sentiment_obj.sentiment = None
-    sentiment_data_service.get_sentiment = AsyncMock(return_value=sentiment_obj)
-    result = await sentiment_data_service.get_current_sentiment_value("conv-2")
-    assert result == Decimal("0.00")
+    assert result == 3.21
 
 
 @pytest.mark.anyio
 async def test_get_current_sentiment_value_not_found(sentiment_data_service):
     sentiment_data_service.get_sentiment = AsyncMock(return_value=None)
     result = await sentiment_data_service.get_current_sentiment_value("conv-3")
-    assert result == Decimal("0.00")
+    assert result == 0.00

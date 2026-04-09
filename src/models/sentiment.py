@@ -9,7 +9,6 @@ from sqlalchemy import (
     CheckConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
-from decimal import Decimal
 
 
 class Sentiment(Base):
@@ -20,10 +19,10 @@ class Sentiment(Base):
         ForeignKey("conversation.id"),
         nullable=False,
     )
-    sentiment: Mapped[Decimal] = mapped_column(
+    sentiment: Mapped[float] = mapped_column(
         Numeric(4, 2),
         nullable=False,
-        default=Decimal("0.00"),
+        default=0.00,
     )
     __table_args__ = (
         Index("ix_sentiment_conversation_id", "conversation_id"),

@@ -270,7 +270,9 @@ def sentiment_data_service(mock_sentiment_repository):
     """Create a SentimentService with mocked repository."""
     from src.service.sentiment_service import SentimentService
 
-    return SentimentService(sentiment_repository=mock_sentiment_repository)
+    return SentimentService(
+        sentiment_repository=mock_sentiment_repository, model_service=MagicMock()
+    )
 
 
 @pytest.fixture
@@ -295,6 +297,7 @@ def build_persona():
             tone=["friendly"],
             professionalism="casual",
             focus=PersonalityFocus(can_tangent=False, refocus_easily=True),
+            sentiment=0.00,
         ),
         communication_rules=CommunicationRules(avoid=["jargon"]),
     )
