@@ -57,5 +57,4 @@ jobs:
             AXIOM_INGEST_DATASET=ai-server-events-staging
           secrets: |
             AI_PROVIDER_API_KEY=AI_PROVIDER_API_KEY:latest
-            AI_PROVIDER_BASE_URL=AI_PROVIDER_BASE_URL:latest
             AI_PROVIDER_MODEL=AI_PROVIDER_MODEL:latest

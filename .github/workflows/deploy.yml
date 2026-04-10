@@ -60,7 +60,6 @@ jobs:
           secrets: |
             DATABASE_URL=PSYCOPG_DATABASE_URL:latest
             AI_PROVIDER_API_KEY=AI_PROVIDER_API_KEY:latest
-            AI_PROVIDER_BASE_URL=AI_PROVIDER_BASE_URL:latest
             AI_PROVIDER_MODEL=AI_PROVIDER_MODEL:latest
             AUTH_URL=AUTH_URL:latest
 
