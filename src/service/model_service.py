@@ -5,16 +5,19 @@ Now uses a registry and cache for extensibility.
 
 import os
 import json
-from typing import Union, TypedDict, Type
+from typing import Union, TypedDict, Type, overload
 from pydantic import ValidationError
 
 from src.exceptions.context_load_exception import ContextLoadException
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
-
+from src.schemas.sentiment_scale_model import SentimentScale
+from src.schemas.listening_cues_model import ListeningCues
+from src.schemas.instructions_model import InstructionsModel
+from src.middlewares.events import wide_event
 
 # only models listed in registry supported
-ModelType = Union[Persona, Project]
+ModelType = Union[Persona, Project, SentimentScale, ListeningCues, InstructionsModel]
 
 
 # TypedDict for registry entries
@@ -47,9 +50,25 @@ class ModelService:
                 "env_var": "PROJECT_FILE",
                 "default_path": "data/project.json",
             },
+            "sentiment_scale": {
+                "schema": SentimentScale,
+                "env_var": "SENTIMENT_SCALE_FILE",
+                "default_path": "data/sentiment_scale.json",
+            },
+            "listening_cues": {
+                "schema": ListeningCues,
+                "env_var": "LISTENING_CUES_FILE",
+                "default_path": "data/listening_cues.json",
+            },
+            "instructions": {
+                "schema": InstructionsModel,
+                "env_var": "INSTRUCTIONS_FILE",
+                "default_path": "data/instructions.json",
+            },
             # Add new models here as needed
         }
 
+    @wide_event("_load_model")
     def _load_model(self, model_name: str) -> bool:
         """
         (Private) Force reloads / caches a model instance for given name, always reading from disk.
@@ -92,21 +111,27 @@ class ModelService:
                 message=f"Unexpected error loading {model_name} context"
             ) from cle
 
-    def get_model(self, model_name: str) -> ModelType:
+    @overload
+    def get_model[T: ModelType](self, model_name: str, expected_type: Type[T]) -> T: ...
+    @overload
+    def get_model(self, model_name: str) -> ModelType: ...
+
+    @wide_event("get_model")
+    def get_model[T: ModelType](
+        self, model_name: str, expected_type: Type[T] | None = None
+    ) -> ModelType | T:
         """
-        Returns cached model instance
-        lazy loads as needed
-        Preferred accessor method (use from agent_service)
-        Args:
-            model_name: e.g. 'persona', 'project', etc.
-        Returns:
-            The cached or newly loaded model instance
+        Returns cached model instance, lazy loads as needed.
+        If expected_type is provided, validates the type and returns it narrowed.
         """
-        if model_name in self.__class__._cache:
-            return self.__class__._cache[model_name]
-        # if not cached
-        self._load_model(model_name)
-        return self.__class__._cache[model_name]
+        if model_name not in self.__class__._cache:
+            self._load_model(model_name)
+        result = self.__class__._cache[model_name]
+        if expected_type is not None and not isinstance(result, expected_type):
+            raise TypeError(
+                f"Expected {expected_type.__name__}, got {type(result).__name__}"
+            )
+        return result
 
     def list_models(self) -> list[str]:
         """Returns a list of all registered model names."""

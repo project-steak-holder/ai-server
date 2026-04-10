@@ -16,7 +16,7 @@ class ExpertiseLevel(BaseModel):
 
     business: str
     technology: str
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", frozen=True)
 
 
 class PersonalityFocus(BaseModel):
@@ -24,7 +24,7 @@ class PersonalityFocus(BaseModel):
 
     can_tangent: bool
     refocus_easily: bool
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", frozen=True)
 
 
 class Personality(BaseModel):
@@ -33,14 +33,15 @@ class Personality(BaseModel):
     tone: List[str]
     professionalism: str
     focus: PersonalityFocus
-    model_config = ConfigDict(extra="allow")
+    sentiment: float = 0.00
+    model_config = ConfigDict(extra="allow", frozen=True)
 
 
 class CommunicationRules(BaseModel):
     """component of Persona model"""
 
     avoid: List[str]
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", frozen=True)
 
 
 class Persona(BaseModel):
@@ -56,4 +57,4 @@ class Persona(BaseModel):
     expertise_level: ExpertiseLevel
     personality: Personality
     communication_rules: CommunicationRules
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", frozen=True)

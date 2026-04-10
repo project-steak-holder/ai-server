@@ -7,11 +7,18 @@ import logging
 
 
 def setup_logger():
-    client = axiom_py.Client(os.environ["AXIOM_INGEST_TOKEN"])
-    handler = AxiomHandler(client, dataset=os.environ["AXIOM_INGEST_DATASET"])
-    handler.setLevel(logging.INFO)
-
-    # Add the Axiom handler to the Wide Event logger
     logger = logging.getLogger("wide_event")
     logger.setLevel(logging.INFO)
-    logger.addHandler(handler)
+
+    token = os.environ.get("AXIOM_INGEST_TOKEN")
+    dataset = os.environ.get("AXIOM_INGEST_DATASET")
+
+    if token and dataset:
+        client = axiom_py.Client(token)
+        handler = AxiomHandler(client, dataset=dataset)
+        handler.setLevel(logging.INFO)
+        logger.addHandler(handler)
+    else:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        logger.addHandler(console_handler)

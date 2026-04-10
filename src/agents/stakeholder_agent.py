@@ -4,18 +4,20 @@ Simulates a project stakeholder persona for interactive conversations.
 """
 
 import os
-
+import re
+from typing import cast, AsyncGenerator, Optional
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ModelMessage
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
-from typing import cast, AsyncGenerator
-
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
 from src.exceptions.llm_response_exception import LlmResponseException
-from src.middlewares.events import wide_event
+from src.middlewares.events import add_event_context, wide_event
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
+from src.schemas.sentiment_scale_model import SentimentScale
+from src.schemas.listening_cues_model import ListeningCues
+from src.schemas.instructions_model import InstructionsModel
 
 
 class AgentDependencies(BaseModel):
@@ -24,12 +26,31 @@ class AgentDependencies(BaseModel):
     persona: Persona
     project: Project
     history: list[ModelMessage] = Field(default_factory=list)
+    sentiment_scale: "SentimentScale"
+    listening_cues: "ListeningCues"
+    instructions: "InstructionsModel"
+
+
+def strip_think_tags(text: str, strip_whitespace: bool = False) -> str:
+    """Remove all <think>...</think> tags from the text (non-greedy). Optionally strip whitespace."""
+    if not isinstance(text, str):
+        return text
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    return cleaned.strip() if strip_whitespace else cleaned
 
 
 class AgentResponse(BaseModel):
     """Structured response from the stakeholder agent."""
 
     content: str = Field(..., description="The agent's response message")
+    sentiment: Optional[float] = Field(
+        default=None,
+        description="The updated sentiment value after this message, if available.",
+    )
+    detected_cues: Optional[list[str]] = Field(
+        default=None,
+        description="List of listening cue names detected in the user message.",
+    )
 
 
 # Initialize PydanticAI Agent
@@ -37,19 +58,11 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     """Create and configure the stakeholder agent."""
 
     # Get environment variables
-    api_base_url = os.environ.get("AI_PROVIDER_BASE_URL", "")
-    api_key = os.environ.get("AI_PROVIDER_API_KEY", "")
-    model_name = os.environ.get("AI_PROVIDER_MODEL", "llama3.1:8b")
+    api_key = os.environ.get("AI_PROVIDER_API_KEY")
+    model_name = os.environ.get("AI_PROVIDER_MODEL", "gemini-2.5-flash")
 
-    provider = OpenAIProvider(
-        base_url=api_base_url,
-        api_key=api_key,
-    )
-
-    model = OpenAIChatModel(
-        model_name=model_name,
-        provider=provider,
-    )
+    provider = GoogleProvider(api_key=api_key)
+    model = GoogleModel(model_name=model_name, provider=provider)
 
     agent = Agent(
         model=model,
@@ -62,6 +75,46 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     def stakeholder_system_prompt(ctx: RunContext[AgentDependencies]) -> str:
         persona = ctx.deps.persona
         project = ctx.deps.project
+        sentiment_scale = ctx.deps.sentiment_scale
+        listening_cues = ctx.deps.listening_cues
+        instructions = ctx.deps.instructions
+
+        # Current sentiment context
+        current_sentiment = persona.personality.sentiment
+        if current_sentiment is None:
+            current_sentiment = 0.0  # Treat None as neutral
+
+        closest_label = min(
+            sentiment_scale.scale,
+            key=lambda e: abs(e.score - current_sentiment),
+        ).label
+        sentiment_context = (
+            f"Your current sentiment toward this conversation is {current_sentiment} ({closest_label}).\n"
+            "Let this influence your tone and willingness to engage — "
+            "Low sentiment means you are frustrated or disengaged, "
+            "High sentiment means you are enthusiastic and cooperative.\n"
+            "Share more requirements when sentiment is higher and less when lower"
+        )
+
+        # Build sentiment scale description
+        scale_lines = "\n".join(
+            f"  {entry.score}: {entry.label}" for entry in sentiment_scale.scale
+        )
+
+        # Build listening cues description
+        cue_lines = ""
+        for category, cues in listening_cues.cues.items():
+            cue_lines += f"\n  {category.capitalize()} cues:\n"
+            for cue in cues:
+                note_str = f" ({cue.note})" if cue.note else ""
+                cue_lines += f"    - {cue.cue} (score: {cue.score}){note_str}\n"
+
+        # Build instructions
+        instruction_lines = "\n".join(
+            f"  - {inst}" for inst in instructions.instructions
+        )
+        notes_str = f"\nNotes: {instructions.notes}" if instructions.notes else ""
+
         return (
             f"You are {persona.name}, a {persona.role}.\n\n"
             f"Background: {persona.background}\n"
@@ -75,7 +128,17 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
             f"- Focus: {persona.personality.focus}\n\n"
             "Communication Rules:\n"
             f"- Avoid: {persona.communication_rules.avoid}\n\n"
-            "Respond naturally as this stakeholder would, considering the conversation history."
+            "Respond naturally as this stakeholder would, considering the conversation history.\n\n"
+            "--- SENTIMENT EVALUATION ---\n"
+            f"Current Sentiment State:\n{sentiment_context}\n"
+            f"{sentiment_scale.purpose}\n"
+            f"Sentiment scale:\n{scale_lines}\n\n"
+            f"{listening_cues.purpose}\n"
+            f"Outcome: {listening_cues.outcome}\n"
+            f"Listening cues:{cue_lines}\n"
+            f"{instructions.purpose}\n"
+            f"Instructions:\n{instruction_lines}\n"
+            f"{notes_str}\n\n"
         )
 
     # nested cast to ensure type safety(safe for mypy in CI/CD pipeline)
@@ -83,7 +146,7 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
 
 
 # Singleton instance
-_agent: Agent[AgentDependencies, AgentResponse] | None = None
+_agent: Optional[Agent[AgentDependencies, AgentResponse]] = None
 
 
 def get_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
@@ -94,54 +157,56 @@ def get_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     return _agent
 
 
-@wide_event("stakeholder_query")
-async def run_stakeholder_query(
-    message: str,
-    persona: Persona,
-    project: Project,
-    history: list[ModelMessage],
-) -> str:
-    """Run a query through the stakeholder agent."""
-    agent = get_stakeholder_agent()
-
-    # Create dependencies
-    deps = AgentDependencies(
-        persona=persona,
-        project=project,
-        history=history,
-    )
-    try:
-        result = await agent.run(
-            user_prompt=message, deps=deps, message_history=history
-        )
-        return result.output.content
-    except Exception as e:
-        raise LlmResponseException(
-            message="Error running stakeholder agent", details={"error": str(e)}
-        )
-
-
 @wide_event("stakeholder_query_stream")
 async def run_stakeholder_query_stream(
     message: str,
     persona: Persona,
     project: Project,
     history: list[ModelMessage],
-) -> AsyncGenerator[str, None]:
-    """Yield text chunks directly - maintain layer consistency."""
+    sentiment_scale: SentimentScale,
+    listening_cues: ListeningCues,
+    instructions: InstructionsModel,
+) -> AsyncGenerator[AgentResponse, None]:
+    """Yield AgentResponse objects as structured output streams in."""
     agent = get_stakeholder_agent()
 
-    deps = AgentDependencies(persona=persona, project=project, history=history)
+    deps = AgentDependencies(
+        persona=persona,
+        project=project,
+        history=history,
+        sentiment_scale=sentiment_scale,
+        listening_cues=listening_cues,
+        instructions=instructions,
+    )
 
+    prev_content = ""
+    last_sentiment = None
     try:
         async with agent.run_stream(
-            user_prompt=message, deps=deps, message_history=history, output_type=str
+            user_prompt=message, deps=deps, message_history=history
         ) as streamed_result:
-            async for chunk in streamed_result.stream_text(delta=True):
-                yield chunk
+            async for partial in streamed_result.stream_output(debounce_by=0.15):
+                current_content = partial.content or ""
+                delta = current_content.removeprefix(prev_content)
+                prev_content = current_content
+                if partial.sentiment is not None:
+                    last_sentiment = partial.sentiment
+                if delta:
+                    cleaned = strip_think_tags(delta, strip_whitespace=False)
+                    if cleaned:
+                        yield AgentResponse(content=cleaned, sentiment=last_sentiment)
 
+            # After stream completes, check final result for sentiment
+            final = await streamed_result.get_output()
+            add_event_context(
+                final_sentiment=final.sentiment,
+                final_detected_cues=final.detected_cues,
+            )
+            if final.sentiment is not None:
+                last_sentiment = final.sentiment
+                yield AgentResponse(content="", sentiment=last_sentiment)
     except Exception as e:
         raise LlmResponseException(
-            message="Error streaming stakeholder agent response",
-            details={"error": str(e)},
-        )
+            message="Unexpected error streaming stakeholder agent response",
+            details={"error": str(e), "type": type(e).__name__},
+        ) from e

@@ -1,30 +1,46 @@
 from .event import get_wide_event, WideEvent
-from .user import get_current_user, CurrentUser
+from .user import get_current_user, CurrentUser, AuthenticatedUser
 from .rate_limiter import rate_limit, RateLimit
 from .database import (
     get_message_repository,
-    get_message_service,
     MessageRepository,
-    MessageService,
+    MessageRepositoryClass,
+    get_sentiment_repository,
+    SentimentRepository,
+    SentimentRepositoryClass,
 )
 from .services import (
     get_agent_service,
     AgentService,
+    get_message_service,
+    MessageService,
+    get_sentiment_service,
+    SentimentService,
+    get_model_service,
+    ModelService,
 )
 
 __all__ = [
-    "get_wide_event",
-    "WideEvent",
-    "get_current_user",
+    "AgentService",
+    "AuthenticatedUser",
+    "AuthenticatedUser",
     "CurrentUser",
-    "rate_limit",
-    "RateLimit",
+    "get_agent_service",
+    "get_current_user",
     "get_message_repository",
     "get_message_service",
+    "get_model_service",
+    "get_sentiment_service",
+    "get_sentiment_repository",
+    "SentimentRepository",
+    "get_wide_event",
     "MessageRepository",
+    "MessageRepositoryClass",
     "MessageService",
-    # removed persona/project service exports
-    "get_agent_service",
-    # removed persona/project service exports
-    "AgentService",
+    "ModelService",
+    "rate_limit",
+    "RateLimit",
+    "SentimentRepositoryClass",
+    "SentimentService",
+    "WideEvent",
 ]
