@@ -33,12 +33,12 @@ wheels/
 *.swp
 *.swo
 *~
-.DS_Store
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
+pytest.ini
 
 # FastAPI/Uvicorn
 .uvicorn*
@@ -52,6 +52,9 @@ htmlcov/
 Thumbs.db
 .DS_Store
 
+
 # Project specific
 *.log
 *.pid
+activate_env.sh
+AGENTS.md

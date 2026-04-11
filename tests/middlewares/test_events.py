@@ -1,6 +1,6 @@
 """Unit tests for event middleware."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from starlette.responses import Response
@@ -9,26 +9,31 @@ from src.middlewares.events import EventMiddleware, WideEvent
 from tests.helpers import FakeWideEvent, make_request
 
 
-def test_wide_event_add_context_and_emit_prints(monkeypatch):
+def test_wide_event_add_context_and_emit_logs(monkeypatch):
     request = make_request(path="/items", method="POST")
-    outputs = []
+    logged = []
     times = iter([100.0, 100.123, 100.456])
 
     monkeypatch.setattr("src.middlewares.events.time.time", lambda: next(times))
-    monkeypatch.setattr("builtins.print", lambda payload: outputs.append(payload))
 
-    event = WideEvent(request)
-    event.add_context(extra="value")
-    event.emit(200, "success")
-    event.emit(500, "error")
+    mock_logger = MagicMock()
+    mock_logger.info = lambda msg: logged.append(("info", msg))
+    mock_logger.error = lambda msg: logged.append(("error", msg))
+
+    with patch("logging.getLogger", return_value=mock_logger):
+        event = WideEvent(request)
+        event.add_context(extra="value")
+        event.emit(200, "success")
+        event.emit(500, "error")  # should be blocked by emitted guard
 
     assert event.context["method"] == "POST"
     assert event.context["path"] == "/items"
     assert event.context["extra"] == "value"
-    assert event.context["status_code"] == 500
-    assert event.context["outcome"] == "error"
+    assert event.context["status_code"] == 200
+    assert event.context["outcome"] == "success"
     assert "duration_ms" in event.context
-    assert len(outputs) == 2
+    assert len(logged) == 1
+    assert logged[0][0] == "info"
 
 
 @pytest.mark.anyio

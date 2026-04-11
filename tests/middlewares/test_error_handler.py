@@ -1,6 +1,7 @@
 """Unit tests for global error handler middleware utilities."""
 
 import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -57,7 +58,7 @@ async def test_global_exception_handler_app_exception_with_wide_event():
 
 
 @pytest.mark.anyio
-async def test_global_exception_handler_http_exception_and_fallback_print(monkeypatch):
+async def test_global_exception_handler_http_exception_and_fallback_print():
     request = make_request()
     request.state.wide_event = FakeWideEvent()
 
@@ -69,12 +70,14 @@ async def test_global_exception_handler_http_exception_and_fallback_print(monkey
     assert payload["error"] == "HTTP_ERROR"
 
     request2 = make_request()
-    printed = []
-    monkeypatch.setattr("builtins.print", lambda msg: printed.append(msg))
+    logged = []
+    mock_logger = MagicMock()
+    mock_logger.error = lambda msg: logged.append(msg)
 
-    response2 = await global_exception_handler(request2, RuntimeError("boom"))
+    with patch("src.middlewares.error_handler.logger", mock_logger):
+        response2 = await global_exception_handler(request2, RuntimeError("boom"))
     assert response2.status_code == 500
-    assert printed and "no wide_event" in printed[0]
+    assert logged and "no wide_event" in logged[0]
 
 
 @pytest.mark.anyio
@@ -86,5 +89,7 @@ async def test_global_exception_handler_generic_exception_with_wide_event():
     response = await global_exception_handler(request, RuntimeError("boom"))
 
     assert response.status_code == 500
-    error_context = wide_event.added[0]["error"]
-    assert error_context["exception_type"] == "RuntimeError"
+    # Error context is now flat — first call has error_code/category/message,
+    # second call has exception_type for 500s
+    assert wide_event.added[0]["error_code"] == "INTERNAL_ERROR"
+    assert wide_event.added[1]["exception_type"] == "RuntimeError"

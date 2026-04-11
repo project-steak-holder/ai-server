@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 
-from src.dependencies.user import CurrentUser
+from src.dependencies import CurrentUser
 
 _buckets: dict[str, deque[datetime]] = defaultdict(deque)
 _LIMIT = 5

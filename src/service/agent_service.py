@@ -4,15 +4,25 @@ This service will orchestrate conversation flow,
 persistence, persona, project context, and LLM interaction for a project stakeholder agent.
 """
 
+import json
+from typing import AsyncGenerator
 from pydantic_ai import ModelMessage
-
-from src.agents.stakeholder_agent import run_stakeholder_query
-from src.exceptions.llm_response_exception import LlmResponseException
+from pydantic import ValidationError
+from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message
+from src.schemas.persona_model import Persona
+from src.schemas.project_model import Project
+from src.schemas.sentiment_scale_model import SentimentScale
+from src.schemas.listening_cues_model import ListeningCues
+from src.schemas.instructions_model import InstructionsModel
 from src.service.history_compactor_service import HistoryCompactorService
-from src.service.persona_service import PersonaService
-from src.service.project_service import ProjectService
+from src.service.model_service import ModelService
 from src.service.message_service import MessageService
+from src.service.sentiment_service import SentimentService
+from src.agents.stakeholder_agent import (
+    AgentResponse,
+    run_stakeholder_query_stream as _run_stakeholder_query_stream,
+)
 
 
 class AgentService:
@@ -20,89 +30,171 @@ class AgentService:
 
     def __init__(
         self,
-        persona_service: PersonaService,
-        project_service: ProjectService,
+        model_service: ModelService,
         message_service: MessageService,
-    ):
+        sentiment_service: SentimentService,
+    ) -> None:
+        self.model_service: ModelService = model_service
+        self.message_service: MessageService = message_service
+        self.sentiment_service: SentimentService = sentiment_service
 
-        # dependencies injected via FastAPI
-        self.persona_service = persona_service
-        self.project_service = project_service
-        self.message_service = message_service
-        self.request: str | None = None
-        self.conversation_id: str | None = None
+    def load_persona(self) -> Persona:
+        """loads persona model from model service"""
+        result = self.model_service.get_model("persona", Persona)
+        add_event_context(persona_name=result.name)
+        return result
 
-    def load_persona(self):
-        """loads from persona service"""
-        self.persona_service.load_persona()
-        return self.persona_service.get_persona()
+    def load_project(self) -> Project:
+        """loads project model from model service"""
+        result = self.model_service.get_model("project", Project)
+        add_event_context(project_name=result.project_name)
+        return result
 
-    def load_project(self):
-        """loads from project service"""
-        self.project_service.load_project()
-        return self.project_service.get_project()
+    def load_sentiment_scale(self) -> SentimentScale:
+        """loads sentiment_scale model from model service"""
+        return self.model_service.get_model("sentiment_scale", SentimentScale)
 
-    async def load_history(self, user_id: str, conversation_id: str):
+    def load_listening_cues(self) -> ListeningCues:
+        """loads listening_cues model from model service"""
+        return self.model_service.get_model("listening_cues", ListeningCues)
+
+    def load_instructions(self) -> InstructionsModel:
+        """loads instructions model from model service"""
+        return self.model_service.get_model("instructions", InstructionsModel)
+
+    async def load_history(self, user_id: str, conversation_id: str) -> list[Message]:
         """loads from message service"""
         db_messages = await self.message_service.get_conversation_history(
             user_id=user_id, conversation_id=conversation_id
         )
+        add_event_context(history_length=len(db_messages))
+        try:
+            return [
+                Message.model_validate(msg, from_attributes=True) for msg in db_messages
+            ]
+        except ValidationError as ve:
+            raise Exception(f"Validation error in message history: {ve}") from ve
 
-        return [
-            Message.model_validate(msg, from_attributes=True) for msg in db_messages
-        ]
-
-    def set_request(self, request: str):
-        """set from request payload in orchestrator method"""
-        self.request = request
-
-    def set_conversation_id(self, conversation_id: str):
-        """set from request payload in orchestrator method"""
-        self.conversation_id = conversation_id
-
-    async def process_agent_query(
+    @wide_event("save_user_message")
+    async def save_user_message(
         self, user_id: str, conversation_id: str, content: str
-    ) -> dict:
-        """Main Orchestrator Method
-        receives request payload from controller as dict
-        assembles context from persona, project and persistence(history) service
-        persists both request and response messages via persistence service
-        returns response to controller as dict
-        """
-        await self.message_service.save_user_message(
+    ) -> Message:
+        """Persist the user's message via message service."""
+        return Message.model_validate(
+            await self.message_service.save_user_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
+        )
+
+    @wide_event("save_ai_message")
+    async def save_ai_message(
+        self, user_id: str, conversation_id: str, content: str
+    ) -> Message:
+        """Persist an AI message via message service."""
+        return Message.model_validate(
+            await self.message_service.save_ai_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                content=content,
+            ),
+            from_attributes=True,
+        )
+
+    @wide_event("run_stakeholder_query_stream")
+    async def run_stakeholder_query_stream(
+        self, content: str, history: list[Message], persona: Persona
+    ) -> AsyncGenerator[AgentResponse, None]:
+        """Load context, compact history, and stream agent response chunks."""
+        project = self.load_project()
+        sentiment_scale = self.load_sentiment_scale()
+        listening_cues = self.load_listening_cues()
+        instructions = self.load_instructions()
+
+        compacted_history: list[
+            ModelMessage
+        ] = await HistoryCompactorService().summarize_old_messages(history)
+
+        async for chunk in _run_stakeholder_query_stream(
+            message=content,
+            persona=persona,
+            project=project,
+            history=compacted_history,
+            sentiment_scale=sentiment_scale,
+            listening_cues=listening_cues,
+            instructions=instructions,
+        ):
+            yield chunk
+
+    @wide_event("process_agent_query_stream")
+    async def process_agent_query_stream(
+        self,
+        user_id: str,
+        conversation_id: str,
+        content: str,
+    ) -> AsyncGenerator[str, None]:
+        """Stream agent response maintaining architectural consistency, with robust error handling for history loading."""
+
+        history = await self.load_history(
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
+
+        await self.save_user_message(
             user_id=user_id,
             conversation_id=conversation_id,
             content=content,
         )
 
-        persona = self.load_persona()
-        project = self.load_project()
-        history = await self.load_history(user_id, conversation_id)  # list[Message]
-        compacted_history: list[
-            ModelMessage
-        ] = await HistoryCompactorService.summarize_old_messages(history)
-
-        try:
-            response_content = await run_stakeholder_query(
-                message=content,
-                persona=persona,
-                project=project,
-                history=compacted_history,
+        persona_with_sentiment = (
+            await self.sentiment_service.get_persona_w_current_sentiment(
+                conversation_id=conversation_id,
             )
-        except LlmResponseException as e:
-            return {
-                "status": "error",
-                "response": "Error processing agent query",
-                "details": str(e),
-            }
-
-        saved_ai_message = await self.message_service.save_ai_message(
-            user_id=user_id,
-            conversation_id=conversation_id,
-            content=response_content,
         )
 
-        return {
-            "status": "success",
-            "response": saved_ai_message.content,
-        }
+        full_response = ""
+        last_sentiment = 0.00
+        try:
+            async for chunk in self.run_stakeholder_query_stream(
+                content,
+                history,
+                persona_with_sentiment,
+            ):
+                if chunk.sentiment is not None:
+                    last_sentiment = chunk.sentiment
+                if chunk.content:
+                    full_response += chunk.content
+                    yield f"data: {json.dumps({'content': chunk.content, 'partial': True})}\n\n"
+
+            add_event_context(ai_response_length=len(full_response))
+            yield f"data: {json.dumps({'content': full_response, 'complete': True})}\n\n"
+
+        except Exception as e:
+            full_response = "I'm sorry, I encountered an unexpected error and was unable to respond."
+            add_event_context(
+                error_type=type(e).__name__,
+                error_message=str(e.__cause__) if e.__cause__ else str(e),
+            )
+            yield f"data: {json.dumps({'content': full_response, 'error': True, 'complete': True})}\n\n"
+
+        finally:
+            for action in (
+                self.save_ai_message(
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                    content=full_response,
+                ),
+                self.sentiment_service.update_sentiment(
+                    conversation_id=conversation_id,
+                    new_value=last_sentiment,
+                ),
+            ):
+                try:
+                    await action
+                except Exception as e:
+                    add_event_context(
+                        error_type=type(e).__name__,
+                        error_message=str(e.__cause__) if e.__cause__ else str(e),
+                    )

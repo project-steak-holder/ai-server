@@ -3,7 +3,8 @@ Message persistence service
 Project SteakHolder
 """
 
-from src.repository.model_repository import MessageRepository
+from src.middlewares.events import wide_event
+from src.repository.message_repository import MessageRepository
 from src.models.message import Message
 from src.schemas.message_model import MessageType
 
@@ -14,6 +15,7 @@ class MessageService:
     def __init__(self, message_repository: MessageRepository) -> None:
         self.message_repository = message_repository
 
+    @wide_event("save_user_message")
     async def save_user_message(
         self, conversation_id: str, user_id: str, content: str
     ) -> Message:
@@ -25,6 +27,7 @@ class MessageService:
             type=MessageType.USER,
         )
 
+    @wide_event("save_ai_message")
     async def save_ai_message(
         self, conversation_id: str, user_id: str, content: str
     ) -> Message:
@@ -36,6 +39,7 @@ class MessageService:
             type=MessageType.AI,
         )
 
+    @wide_event("get_conversation_history")
     async def get_conversation_history(
         self, conversation_id: str, user_id: str
     ) -> list[Message]:

@@ -1,0 +1,16 @@
+{
+    "purpose": "translate between numerical sentiment score and persona-guiding sentiment verb",
+    "scale": [
+        {"score": -10, "label": "Furious"},
+        {"score": -8, "label": "Angry"},
+        {"score": -6, "label": "Frustrated"},
+        {"score": -4, "label": "Annoyed"},
+        {"score": -2, "label": "Disinterested"},
+        {"score": 0, "label": "Neutral"},
+        {"score": 2, "label": "Receptive"},
+        {"score": 4, "label": "Engaged"},
+        {"score": 6, "label": "Enthusiastic"},
+        {"score": 8, "label": "Excited"},
+        {"score": 10, "label": "Elated"}
+    ]
+}

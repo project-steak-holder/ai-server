@@ -1,0 +1,47 @@
+{
+	"purpose": "backend LLM listens for these in stakeholder input",
+	"outcome": "LLM will tally heard cues into sentiment_delta",
+	"cues": {
+		"positive": [
+			{
+				"cue": "keeps message concise and focused on the topic at hand",
+				"score": 0.5
+			},
+			{ "cue": "asks permission", "score": 0.5 },
+			{ "cue": "acknowledges stakeholder input", "score": 1 },
+			{ "cue": "shows stakeholder benefit", "score": 1 },
+			{
+				"cue": "user message is mostly responsive to what was said, with minimal unrelated tangents",
+				"score": 0.5
+			},
+			{ "cue": "asks open-ended questions", "score": 1 },
+			{ "cue": "asks relevant follow-up", "score": 1 },
+			{ "cue": "asks about stakeholder goals", "score": 2 },
+			{ "cue": "accurately paraphrases input", "score": 2 },
+			{ "cue": "asks for specific example", "score": 1.5 },
+			{ "cue": "confirms understanding", "score": 1 }
+		],
+		"negative": [
+			{
+				"cue": "asks a question already answered earlier in the conversation",
+				"score": -1.5
+			},
+			{ "cue": "inconsistent with stakeholder input", "score": -1.5 },
+			{
+				"cue": "uses dismissive, insulting, or hostile language toward the stakeholder",
+				"score": -3
+			},
+			{ "cue": "offers premature solution", "score": -2.5 },
+			{
+				"cue": "gives a vague or non-committal response when specifics were requested",
+				"score": -2
+			},
+			{ "cue": "ignores requirement/constraint", "score": -3 },
+			{
+				"cue": "asks more than 2 questions in a single message",
+				"score": -1.5,
+				"note": "additional -0.05 per question beyond 2, cap -3.0"
+			}
+		]
+	}
+}

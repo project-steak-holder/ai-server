@@ -4,7 +4,7 @@ Test class for HistoryCompactorService.
 
 import uuid
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from pydantic_ai import ModelRequest, ModelResponse, TextPart
 
 from src.schemas.message_model import Message, MessageType
@@ -12,18 +12,21 @@ from src.service.history_compactor_service import HistoryCompactorService
 
 
 @pytest.fixture(autouse=True)
-def mock_summarize_agent_run_with_five_messages():
-    """Fixture to mock summarize_agent.run"""
-    with patch(
-        "src.service.history_compactor_service.summarize_agent.run",
-        new_callable=AsyncMock,
-    ) as mock_run:
+def mock_summarize_agent_run_with_five_messages(monkeypatch):
+    """Fixture to mock summarize_agent.run on HistoryCompactorService instance without requiring real provider."""
+    monkeypatch.setattr(HistoryCompactorService, "__init__", lambda self: None)
+
+    def setup_agent(self):
+        self.summarize_agent = MagicMock()
+        self.summarize_agent.run = AsyncMock()
         mock_result = MagicMock()
         mock_result.new_messages.return_value = [
             ModelResponse(parts=[TextPart(content="Summary of old messages")])
         ]
-        mock_run.return_value = mock_result
-        yield
+        self.summarize_agent.run.return_value = mock_result
+
+    HistoryCompactorService.setup_agent = setup_agent  # type: ignore[attr-defined]
+    yield
 
 
 @pytest.mark.anyio
@@ -38,7 +41,9 @@ async def test_summarize_old_messages_no_needed_summarization():
         )
         for i in range(5)
     ]
-    result = await HistoryCompactorService.summarize_old_messages(messages)
+    svc = HistoryCompactorService()
+    svc.setup_agent()  # type: ignore[attr-defined]
+    result = await svc.summarize_old_messages(messages)
     assert len(result) == 5
     assert all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in result)
 
@@ -55,6 +60,8 @@ async def test_summarize_old_messages_with_summarization():
         )
         for i in range(15)
     ]
-    result = await HistoryCompactorService.summarize_old_messages(messages)
+    svc = HistoryCompactorService()
+    svc.setup_agent()  # type: ignore[attr-defined]
+    result = await svc.summarize_old_messages(messages)
     assert len(result) == 11  # summary + 10 recent
     assert all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in result)
