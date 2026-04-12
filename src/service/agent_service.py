@@ -33,10 +33,12 @@ class AgentService:
         model_service: ModelService,
         message_service: MessageService,
         sentiment_service: SentimentService,
+        compactor_service: HistoryCompactorService,
     ) -> None:
         self.model_service: ModelService = model_service
         self.message_service: MessageService = message_service
         self.sentiment_service: SentimentService = sentiment_service
+        self.compactor_service: HistoryCompactorService = compactor_service
 
     def load_persona(self) -> Persona:
         """loads persona model from model service"""
@@ -115,7 +117,7 @@ class AgentService:
 
         compacted_history: list[
             ModelMessage
-        ] = await HistoryCompactorService().summarize_old_messages(history)
+        ] = await self.compactor_service.summarize_old_messages(history)
 
         async for chunk in _run_stakeholder_query_stream(
             message=content,

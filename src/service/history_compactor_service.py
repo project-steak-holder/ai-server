@@ -65,7 +65,7 @@ class HistoryCompactorService:
         Uses summarize_agent model."""
         converted_messages = self._convert_to_modellist(messages)
         message_cutoff = 10
-        if len(messages) >= message_cutoff:
+        if len(messages) > message_cutoff:
             recent_messages = converted_messages[-message_cutoff:]
             old_messages = converted_messages[:-message_cutoff]
             start = time.time()
