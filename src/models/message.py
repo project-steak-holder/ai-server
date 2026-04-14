@@ -22,7 +22,7 @@ class Message(Base):
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     conversation_id = Column(
         UUID,
-        ForeignKey("conversation.id"),
+        ForeignKey("conversation.id", ondelete="CASCADE"),
         nullable=False,
     )
     user_id = Column(
