@@ -11,12 +11,17 @@ from src.service.message_service import MessageService as MessageServiceClass
 from src.service.sentiment_service import (
     SentimentService as SentimentServiceClass,
 )
+from src.service.history_compactor_service import (
+    HistoryCompactorService as HistoryCompactorServiceClass,
+)
 
 from src.dependencies import (
     get_message_repository,
     get_sentiment_repository,
+    get_summary_repository,
     MessageRepositoryClass,
     SentimentRepositoryClass,
+    SummaryRepositoryClass,
 )
 
 
@@ -24,6 +29,12 @@ from src.dependencies import (
 def get_model_service() -> ModelServiceClass:
     """Get ModelService singleton instance (cached)."""
     return ModelServiceClass()
+
+
+@lru_cache()
+def get_history_compactor_service() -> HistoryCompactorServiceClass:
+    """Get HistoryCompactorService singleton instance (cached). Used by background tasks."""
+    return HistoryCompactorServiceClass()
 
 
 def get_message_service(
@@ -49,12 +60,16 @@ def get_agent_service(
     model_service: Annotated[ModelServiceClass, Depends(get_model_service)],
     message_service: Annotated[MessageServiceClass, Depends(get_message_service)],
     sentiment_service: Annotated[SentimentServiceClass, Depends(get_sentiment_service)],
+    summary_repository: Annotated[
+        SummaryRepositoryClass, Depends(get_summary_repository)
+    ],
 ) -> AgentServiceClass:
     """Get AgentService instance with injected dependencies."""
     return AgentServiceClass(
         model_service=model_service,
         message_service=message_service,
         sentiment_service=sentiment_service,
+        summary_repository=summary_repository,
     )
 
 

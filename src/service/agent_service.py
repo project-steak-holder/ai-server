@@ -6,7 +6,7 @@ persistence, persona, project context, and LLM interaction for a project stakeho
 
 import json
 from typing import AsyncGenerator
-from pydantic_ai import ModelMessage
+from pydantic_ai import ModelMessage, ModelResponse, TextPart
 from pydantic import ValidationError
 from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message
@@ -19,6 +19,7 @@ from src.service.history_compactor_service import HistoryCompactorService
 from src.service.model_service import ModelService
 from src.service.message_service import MessageService
 from src.service.sentiment_service import SentimentService
+from src.repository.summary_repository import SummaryRepository
 from src.agents.stakeholder_agent import (
     AgentResponse,
     run_stakeholder_query_stream as _run_stakeholder_query_stream,
@@ -33,10 +34,12 @@ class AgentService:
         model_service: ModelService,
         message_service: MessageService,
         sentiment_service: SentimentService,
+        summary_repository: SummaryRepository,
     ) -> None:
         self.model_service: ModelService = model_service
         self.message_service: MessageService = message_service
         self.sentiment_service: SentimentService = sentiment_service
+        self.summary_repository: SummaryRepository = summary_repository
 
     def load_persona(self) -> Persona:
         """loads persona model from model service"""
@@ -105,17 +108,26 @@ class AgentService:
 
     @wide_event("run_stakeholder_query_stream")
     async def run_stakeholder_query_stream(
-        self, content: str, history: list[Message], persona: Persona
+        self,
+        content: str,
+        conversation_id: str,
+        history: list[Message],
+        persona: Persona,
     ) -> AsyncGenerator[AgentResponse, None]:
-        """Load context, compact history, and stream agent response chunks."""
+        """Load context, assemble history from summary + recent messages, and stream."""
         project = self.load_project()
         sentiment_scale = self.load_sentiment_scale()
         listening_cues = self.load_listening_cues()
         instructions = self.load_instructions()
 
-        compacted_history: list[
-            ModelMessage
-        ] = await HistoryCompactorService().summarize_old_messages(history)
+        # Assemble history: cached summary + recent messages
+        compacted_history: list[ModelMessage] = []
+        cached = await self.summary_repository.get_conversation_summary(conversation_id)
+        if cached and cached.content:
+            compacted_history.append(
+                ModelResponse(parts=[TextPart(content=cached.content)])
+            )
+        compacted_history += HistoryCompactorService._convert_to_modellist(history)
 
         async for chunk in _run_stakeholder_query_stream(
             message=content,
@@ -159,6 +171,7 @@ class AgentService:
         try:
             async for chunk in self.run_stakeholder_query_stream(
                 content,
+                conversation_id,
                 history,
                 persona_with_sentiment,
             ):

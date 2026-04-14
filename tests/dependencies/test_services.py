@@ -22,15 +22,19 @@ def test_dependencies_service_factories():
     mock_model_service = MagicMock(name="ModelService")
     mock_message_service = MagicMock(name="MessageService")
     mock_sentiment_service = MagicMock(name="SentimentService")
-    mock_message_service = MagicMock(name="MessageService")
+    mock_summary_repository = MagicMock(name="SummaryRepository")
 
     agent_service = get_agent_service(
-        mock_model_service, mock_message_service, mock_sentiment_service
+        mock_model_service,
+        mock_message_service,
+        mock_sentiment_service,
+        mock_summary_repository,
     )
 
     assert isinstance(agent_service, AgentService)
     assert agent_service.message_service == mock_message_service
     assert agent_service.model_service == mock_model_service
+    assert agent_service.summary_repository == mock_summary_repository
 
     # Test get_sentiment_service returns SentimentService instance with a mock repo
     mock_repo = MagicMock()

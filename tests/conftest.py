@@ -124,7 +124,7 @@ def message_service(mock_message_repository):
 
 
 @pytest.fixture
-def agent_service(mock_message_service):
+def agent_service(mock_message_service, mock_summary_repository):
     """Create an AgentService with mocked dependencies."""
     mock_model_service = MagicMock(spec=ModelService)
     # Provide real Persona and Project for _load_model
@@ -253,6 +253,7 @@ def agent_service(mock_message_service):
         model_service=mock_model_service,
         message_service=mock_message_service,
         sentiment_service=mock_sentiment_service,
+        summary_repository=mock_summary_repository,
     )
 
 
@@ -262,14 +263,24 @@ def mock_compactor():
     from unittest.mock import patch
 
     instance = MagicMock()
-    instance.summarize_old_messages = AsyncMock(return_value=[])
     instance.summarize = AsyncMock(return_value="Summary of old messages")
     instance.estimate_tokens = MagicMock(side_effect=lambda content: len(content) // 4)
+    instance._convert_to_modellist = MagicMock(return_value=[])
     with patch(
         "src.service.agent_service.HistoryCompactorService",
-        return_value=instance,
-    ):
+    ) as mock_cls:
+        mock_cls._convert_to_modellist = MagicMock(return_value=[])
+        mock_cls.return_value = instance
         yield instance
+
+
+@pytest.fixture
+def mock_summary_repository():
+    """Create a mock SummaryRepository."""
+    mock = MagicMock()
+    mock.get_conversation_summary = AsyncMock(return_value=None)
+    mock.update_summary = AsyncMock(return_value=None)
+    return mock
 
 
 @pytest.fixture

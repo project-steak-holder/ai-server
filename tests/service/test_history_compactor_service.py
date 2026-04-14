@@ -101,7 +101,7 @@ class TestSummarize:
         messages = _make_messages(5)
         result = await svc.summarize(messages)
         assert result == "Summary of old messages"
-        svc.summarize_agent.run.assert_called_once()
+        svc.summarize_agent.run.assert_called_once()  # type: ignore[attr-defined]
 
     @pytest.mark.anyio
     async def test_summarize_passes_converted_messages(self):
@@ -109,7 +109,7 @@ class TestSummarize:
         svc.setup_agent()  # type: ignore[attr-defined]
         messages = _make_messages(3)
         await svc.summarize(messages)
-        call_kwargs = svc.summarize_agent.run.call_args
+        call_kwargs = svc.summarize_agent.run.call_args  # type: ignore[attr-defined]
         history = call_kwargs.kwargs["message_history"]
         assert len(history) == 3
         assert all(isinstance(m, (ModelRequest, ModelResponse)) for m in history)
