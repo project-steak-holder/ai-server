@@ -40,7 +40,7 @@ target_metadata = Base.metadata
 # ... etc.
 
 # Only include tables that are managed by this service
-MANAGED_TABLES = {"message"}
+MANAGED_TABLES = {"message", "summary"}
 
 
 def include_object(obj, name, type_, reflected, compare_to):
