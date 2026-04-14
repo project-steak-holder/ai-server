@@ -263,6 +263,8 @@ def mock_compactor():
 
     instance = MagicMock()
     instance.summarize_old_messages = AsyncMock(return_value=[])
+    instance.summarize = AsyncMock(return_value="Summary of old messages")
+    instance.estimate_tokens = MagicMock(side_effect=lambda content: len(content) // 4)
     with patch(
         "src.service.agent_service.HistoryCompactorService",
         return_value=instance,
