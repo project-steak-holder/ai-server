@@ -19,6 +19,7 @@ class SummaryRepository(BaseCRUDRepository[Summary]):
             summary.token_count = token_count
             summary.window_start = window_start
             summary.window_end = window_end
+            return await self.update(summary)
         else:
             summary = Summary(
                 conversation_id=conversation_id,
@@ -27,4 +28,4 @@ class SummaryRepository(BaseCRUDRepository[Summary]):
                 window_start=window_start,
                 window_end=window_end,
             )
-        return await self.update(summary)
+            return await self.create(summary)
