@@ -49,6 +49,25 @@ async def test_summarize_old_messages_no_needed_summarization():
 
 
 @pytest.mark.anyio
+async def test_summarize_old_messages_exactly_at_cutoff():
+    """Test summarize_old_messages returns input unchanged when exactly 10 messages (boundary)."""
+    messages = [
+        Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.uuid4(),
+            content=f"Message {i}",
+            type=MessageType.USER if i % 2 == 0 else MessageType.AI,
+        )
+        for i in range(10)
+    ]
+    svc = HistoryCompactorService()
+    svc.setup_agent()  # type: ignore[attr-defined]
+    result = await svc.summarize_old_messages(messages)
+    assert len(result) == 10
+    assert all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in result)
+
+
+@pytest.mark.anyio
 async def test_summarize_old_messages_with_summarization():
     """Test summarize_old_messages summarizes old messages and keeps recent ones."""
     messages = [

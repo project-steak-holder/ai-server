@@ -124,7 +124,7 @@ def message_service(mock_message_repository):
 
 
 @pytest.fixture
-def agent_service(mock_message_service):
+def agent_service(mock_message_service, mock_compactor):
     """Create an AgentService with mocked dependencies."""
     mock_model_service = MagicMock(spec=ModelService)
     # Provide real Persona and Project for _load_model
@@ -253,21 +253,16 @@ def agent_service(mock_message_service):
         model_service=mock_model_service,
         message_service=mock_message_service,
         sentiment_service=mock_sentiment_service,
+        compactor_service=mock_compactor,
     )
 
 
 @pytest.fixture
 def mock_compactor():
     """Mock HistoryCompactorService to avoid API key requirement in tests."""
-    from unittest.mock import patch
-
     instance = MagicMock()
     instance.summarize_old_messages = AsyncMock(return_value=[])
-    with patch(
-        "src.service.agent_service.HistoryCompactorService",
-        return_value=instance,
-    ):
-        yield instance
+    return instance
 
 
 @pytest.fixture
