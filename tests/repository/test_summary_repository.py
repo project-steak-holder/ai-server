@@ -1,9 +1,11 @@
 import uuid
 from datetime import datetime, timezone
+from typing import cast
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.sql.schema import Table
 
 from src.models.conversation import Conversation
 from src.models.summary import Summary
@@ -18,7 +20,10 @@ async def test_update_summary_creates_then_updates() -> None:
         await conn.run_sync(
             lambda sync_conn: Summary.metadata.create_all(
                 sync_conn,
-                tables=[Conversation.__table__, Summary.__table__],
+                tables=[
+                    cast(Table, Conversation.__table__),
+                    cast(Table, Summary.__table__),
+                ],
             )
         )
 
