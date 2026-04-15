@@ -45,12 +45,10 @@ class MessageRepository(BaseCRUDRepository[Message]):
         self, conversation_id: str
     ) -> list[Message]:
         """Fetch all messages for a conversation, ordered by creation time."""
-        return list(
-            await self.get_all_by_field(
-                "conversation_id",
-                conversation_id,
-                order_by=Message.created_at,
-            )
+        return await self.get_all_by_field(
+            "conversation_id",
+            conversation_id,
+            order_by=Message.created_at,
         )
 
     async def get_messages_after(

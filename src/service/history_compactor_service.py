@@ -8,17 +8,14 @@ Project StakeHolder
 import os
 from pydantic_ai import (
     Agent,
-    ModelRequest,
-    ModelResponse,
     ModelMessage,
-    TextPart,
-    UserPromptPart,
 )
 
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
-from src.schemas.message_model import Message, MessageType
+from src.schemas.message_model import Message
+from src.service.history_message_adapter import convert_messages_to_model_messages
 
 
 class HistoryCompactorService:
@@ -42,25 +39,12 @@ class HistoryCompactorService:
         )
 
     @staticmethod
-    def _convert_to_modellist(
-        messages: list[Message],
-    ) -> list[ModelMessage]:
-        """Convert list of Message models to list of ModelMessages."""
-        result: list[ModelMessage] = []
-        for msg in messages:
-            if msg.role == MessageType.USER:
-                result.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
-            else:
-                result.append(ModelResponse(parts=[TextPart(content=msg.content)]))
-        return result
-
-    @staticmethod
     def estimate_tokens(content: str) -> int:
         """Estimate token count from content string. ~4 chars per token."""
         return len(content) // 4
 
     async def summarize(self, messages: list[Message]) -> str:
         """Summarize a list of messages. Returns summary text."""
-        converted = self._convert_to_modellist(messages)
+        converted: list[ModelMessage] = convert_messages_to_model_messages(messages)
         result = await self.summarize_agent.run(message_history=converted)
         return result.output

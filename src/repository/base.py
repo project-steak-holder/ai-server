@@ -41,7 +41,7 @@ class BaseCRUDRepository(Generic[ModelT]):
         order_by: ColumnElement | None = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-    ) -> Sequence[ModelT]:
+    ) -> list[ModelT]:
         """Fetch all records matching a field value with optional ordering/pagination."""
         column = getattr(self.model, field)
         stmt: Select = select(self.model).where(column == value)
@@ -52,7 +52,7 @@ class BaseCRUDRepository(Generic[ModelT]):
         if limit is not None:
             stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_all(
         self,

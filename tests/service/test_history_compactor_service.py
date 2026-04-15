@@ -58,39 +58,6 @@ class TestEstimateTokens:
         assert HistoryCompactorService.estimate_tokens("hi") == 0
 
 
-class TestConvertToModellist:
-    """Tests for the static _convert_to_modellist method."""
-
-    def test_converts_user_messages(self):
-        messages = _make_messages(1)
-        result = HistoryCompactorService._convert_to_modellist(messages)
-        assert len(result) == 1
-        assert isinstance(result[0], ModelRequest)
-
-    def test_converts_ai_messages(self):
-        messages = [
-            Message(
-                id=uuid.uuid4(),
-                conversation_id=uuid.uuid4(),
-                content="AI response",
-                type=MessageType.AI,
-            )
-        ]
-        result = HistoryCompactorService._convert_to_modellist(messages)
-        assert len(result) == 1
-        assert isinstance(result[0], ModelResponse)
-
-    def test_converts_mixed_messages(self):
-        messages = _make_messages(5)
-        result = HistoryCompactorService._convert_to_modellist(messages)
-        assert len(result) == 5
-        assert all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in result)
-
-    def test_empty_list(self):
-        result = HistoryCompactorService._convert_to_modellist([])
-        assert result == []
-
-
 class TestSummarize:
     """Tests for the async summarize method."""
 

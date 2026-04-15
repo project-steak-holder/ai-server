@@ -15,7 +15,7 @@ from src.schemas.project_model import Project
 from src.schemas.sentiment_scale_model import SentimentScale
 from src.schemas.listening_cues_model import ListeningCues
 from src.schemas.instructions_model import InstructionsModel
-from src.service.history_compactor_service import HistoryCompactorService
+from src.service.history_message_adapter import convert_messages_to_model_messages
 from src.service.model_service import ModelService
 from src.service.message_service import MessageService
 from src.service.sentiment_service import SentimentService
@@ -111,7 +111,7 @@ class AgentService:
         self,
         content: str,
         conversation_id: str,
-        history: list[Message],
+        recent_history: list[Message],
         persona: Persona,
     ) -> AsyncGenerator[AgentResponse, None]:
         """Load context, assemble history from summary + recent messages, and stream."""
@@ -121,19 +121,17 @@ class AgentService:
         instructions = self.load_instructions()
 
         # Assemble history: cached summary + recent messages
-        compacted_history: list[ModelMessage] = []
-        cached = await self.summary_service.get_conversation_summary(conversation_id)
-        if cached and cached.content:
-            compacted_history.append(
-                ModelResponse(parts=[TextPart(content=cached.content)])
-            )
-        compacted_history += HistoryCompactorService._convert_to_modellist(history)
+        history: list[ModelMessage] = []
+        summary = await self.summary_service.get_conversation_summary(conversation_id)
+        if summary and summary.content:
+            history.append(ModelResponse(parts=[TextPart(content=summary.content)]))
+        history += convert_messages_to_model_messages(recent_history)
 
         async for chunk in _run_stakeholder_query_stream(
             message=content,
             persona=persona,
             project=project,
-            history=compacted_history,
+            history=history,
             sentiment_scale=sentiment_scale,
             listening_cues=listening_cues,
             instructions=instructions,
@@ -170,10 +168,10 @@ class AgentService:
         last_sentiment = 0.00
         try:
             async for chunk in self.run_stakeholder_query_stream(
-                content,
-                conversation_id,
-                history,
-                persona_with_sentiment,
+                content=content,
+                conversation_id=conversation_id,
+                recent_history=history,
+                persona=persona_with_sentiment,
             ):
                 if chunk.sentiment is not None:
                     last_sentiment = chunk.sentiment

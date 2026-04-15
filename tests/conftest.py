@@ -267,11 +267,9 @@ def mock_compactor():
     instance = MagicMock()
     instance.summarize = AsyncMock(return_value="Summary of old messages")
     instance.estimate_tokens = MagicMock(side_effect=lambda content: len(content) // 4)
-    instance._convert_to_modellist = MagicMock(return_value=[])
     with patch(
         "src.service.agent_service.HistoryCompactorService",
     ) as mock_cls:
-        mock_cls._convert_to_modellist = MagicMock(return_value=[])
         mock_cls.return_value = instance
         yield instance
 

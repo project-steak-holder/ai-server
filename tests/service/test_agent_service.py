@@ -95,7 +95,7 @@ async def test_process_agent_query_stream_success(agent_service):
             return_value=mock_streaming_chunks(),
         ) as mock_run_stream,
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(
@@ -192,7 +192,7 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
             ),
         ) as mock_run_stream,
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(
@@ -255,7 +255,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
             return_value=mock_streaming_chunks(),
         ),
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(agent_service, "model_service", MagicMock()) as mock_model_service,
@@ -380,7 +380,7 @@ async def test_process_agent_query_stream_accumulates_full_response(agent_servic
             return_value=mock_streaming_chunks(),
         ),
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(
@@ -482,7 +482,7 @@ async def test_streaming_sentiment_absolute(agent_service):
             return_value=mock_stream(),
         ),
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(
@@ -560,7 +560,7 @@ async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
             return_value=mock_stream1(),
         ),
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(
@@ -606,7 +606,7 @@ async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
             return_value=mock_stream2(),
         ),
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(
@@ -661,7 +661,7 @@ async def test_process_agent_query_stream_uses_cached_summary(agent_service):
             return_value=mock_stream(),
         ) as mock_run_stream,
         patch(
-            "src.service.agent_service.HistoryCompactorService._convert_to_modellist",
+            "src.service.agent_service.convert_messages_to_model_messages",
             return_value=[],
         ),
         patch.object(
