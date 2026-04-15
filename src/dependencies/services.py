@@ -14,6 +14,7 @@ from src.service.sentiment_service import (
 from src.service.history_compactor_service import (
     HistoryCompactorService as HistoryCompactorServiceClass,
 )
+from src.service.summary_service import SummaryService as SummaryServiceClass
 
 from src.dependencies import (
     get_message_repository,
@@ -56,20 +57,27 @@ def get_sentiment_service(
     )
 
 
+def get_summary_service(
+    summary_repository: Annotated[
+        SummaryRepositoryClass, Depends(get_summary_repository)
+    ],
+) -> SummaryServiceClass:
+    """Get SummaryService instance with injected repository."""
+    return SummaryServiceClass(summary_repository=summary_repository)
+
+
 def get_agent_service(
     model_service: Annotated[ModelServiceClass, Depends(get_model_service)],
     message_service: Annotated[MessageServiceClass, Depends(get_message_service)],
     sentiment_service: Annotated[SentimentServiceClass, Depends(get_sentiment_service)],
-    summary_repository: Annotated[
-        SummaryRepositoryClass, Depends(get_summary_repository)
-    ],
+    summary_service: Annotated[SummaryServiceClass, Depends(get_summary_service)],
 ) -> AgentServiceClass:
     """Get AgentService instance with injected dependencies."""
     return AgentServiceClass(
         model_service=model_service,
         message_service=message_service,
         sentiment_service=sentiment_service,
-        summary_repository=summary_repository,
+        summary_service=summary_service,
     )
 
 
@@ -78,3 +86,4 @@ ModelService = Annotated[ModelServiceClass, Depends(get_model_service)]
 AgentService = Annotated[AgentServiceClass, Depends(get_agent_service)]
 SentimentService = Annotated[SentimentServiceClass, Depends(get_sentiment_service)]
 MessageService = Annotated[MessageServiceClass, Depends(get_message_service)]
+SummaryService = Annotated[SummaryServiceClass, Depends(get_summary_service)]

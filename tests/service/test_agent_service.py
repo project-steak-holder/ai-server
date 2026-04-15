@@ -145,7 +145,7 @@ async def test_process_agent_query_stream_success(agent_service):
             chunks.append(chunk)
 
         # Verify summary repo was queried and streaming agent was called
-        agent_service.summary_repository.get_conversation_summary.assert_called_once()
+        agent_service.summary_service.summary_repository.get_conversation_summary.assert_called_once()
         mock_run_stream.assert_called_once()
 
         # Verify we got SSE formatted chunks + completion
@@ -222,7 +222,7 @@ async def test_process_agent_query_stream_handles_llm_error(agent_service):
         assert error_data["error"] is True
         assert error_data["complete"] is True
 
-        agent_service.summary_repository.get_conversation_summary.assert_called_once()
+        agent_service.summary_service.summary_repository.get_conversation_summary.assert_called_once()
         mock_run_stream.assert_called_once()
 
         # Verify user message was saved
@@ -350,7 +350,7 @@ async def test_process_agent_query_stream_preserves_context_loading(agent_servic
         assert "project" in calls
 
         # Verify summary repo was queried
-        agent_service.summary_repository.get_conversation_summary.assert_called_once()
+        agent_service.summary_service.summary_repository.get_conversation_summary.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -651,8 +651,8 @@ async def test_process_agent_query_stream_uses_cached_summary(agent_service):
     # Set up a cached summary
     mock_summary = MagicMock()
     mock_summary.content = "Previous conversation summary"
-    agent_service.summary_repository.get_conversation_summary = AsyncMock(
-        return_value=mock_summary
+    agent_service.summary_service.summary_repository.get_conversation_summary = (
+        AsyncMock(return_value=mock_summary)
     )
 
     with (

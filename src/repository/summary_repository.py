@@ -2,7 +2,9 @@ from src.models.summary import Summary
 from src.repository.base import BaseCRUDRepository
 
 
-class SummaryRepository(BaseCRUDRepository):
+class SummaryRepository(BaseCRUDRepository[Summary]):
+    model = Summary
+
     async def get_conversation_summary(self, conversation_id):
         """Get the summary for a given conversation ID."""
         return await self.get_by_field("conversation_id", conversation_id)
@@ -26,5 +28,3 @@ class SummaryRepository(BaseCRUDRepository):
                 window_end=window_end,
             )
         return await self.update(summary)
-
-    pass

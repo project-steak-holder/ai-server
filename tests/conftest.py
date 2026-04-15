@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from src.service.agent_service import AgentService
 from src.service.message_service import MessageService
 from src.service.model_service import ModelService
+from src.service.summary_service import SummaryService
 from src.repository.message_repository import MessageRepository
 from src.models.message import Message as MessageModel
 from src.schemas.message_model import MessageType
@@ -249,11 +250,12 @@ def agent_service(mock_message_service, mock_summary_repository):
     mock_sentiment_service.get_persona_w_current_sentiment = AsyncMock(
         return_value=persona
     )
+    summary_service = SummaryService(summary_repository=mock_summary_repository)
     return AgentService(
         model_service=mock_model_service,
         message_service=mock_message_service,
         sentiment_service=mock_sentiment_service,
-        summary_repository=mock_summary_repository,
+        summary_service=summary_service,
     )
 
 

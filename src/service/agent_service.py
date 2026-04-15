@@ -19,7 +19,7 @@ from src.service.history_compactor_service import HistoryCompactorService
 from src.service.model_service import ModelService
 from src.service.message_service import MessageService
 from src.service.sentiment_service import SentimentService
-from src.repository.summary_repository import SummaryRepository
+from src.service.summary_service import SummaryService
 from src.agents.stakeholder_agent import (
     AgentResponse,
     run_stakeholder_query_stream as _run_stakeholder_query_stream,
@@ -34,12 +34,12 @@ class AgentService:
         model_service: ModelService,
         message_service: MessageService,
         sentiment_service: SentimentService,
-        summary_repository: SummaryRepository,
+        summary_service: SummaryService,
     ) -> None:
         self.model_service: ModelService = model_service
         self.message_service: MessageService = message_service
         self.sentiment_service: SentimentService = sentiment_service
-        self.summary_repository: SummaryRepository = summary_repository
+        self.summary_service: SummaryService = summary_service
 
     def load_persona(self) -> Persona:
         """loads persona model from model service"""
@@ -122,7 +122,7 @@ class AgentService:
 
         # Assemble history: cached summary + recent messages
         compacted_history: list[ModelMessage] = []
-        cached = await self.summary_repository.get_conversation_summary(conversation_id)
+        cached = await self.summary_service.get_conversation_summary(conversation_id)
         if cached and cached.content:
             compacted_history.append(
                 ModelResponse(parts=[TextPart(content=cached.content)])
