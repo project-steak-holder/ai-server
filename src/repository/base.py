@@ -4,6 +4,8 @@ from typing import Generic, Optional, Sequence, TypeVar
 
 from src.models.base import Base
 from sqlalchemy import select
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.selectable import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Type variable for the model class
@@ -30,6 +32,27 @@ class BaseCRUDRepository(Generic[ModelT]):
         stmt = select(self.model).where(column == value)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_all_by_field(
+        self,
+        field: str,
+        value: object,
+        *,
+        order_by: ColumnElement | None = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> list[ModelT]:
+        """Fetch all records matching a field value with optional ordering/pagination."""
+        column = getattr(self.model, field)
+        stmt: Select = select(self.model).where(column == value)
+        if order_by is not None:
+            stmt = stmt.order_by(order_by)
+        if offset is not None:
+            stmt = stmt.offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_all(
         self,

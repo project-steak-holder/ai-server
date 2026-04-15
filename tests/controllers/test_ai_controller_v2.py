@@ -31,11 +31,13 @@ async def test_ai_controller_v2_generate_stream_success():
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
 
+    background_tasks = MagicMock()
     result = await generate_stream(
         payload=payload,
         current_user=current_user,
         wide_event=wide_event,
         agent_service=agent_service,
+        background_tasks=background_tasks,
         _=None,
     )
 
@@ -82,11 +84,13 @@ async def test_ai_controller_v2_generate_stream_collects_chunks():
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
 
+    background_tasks = MagicMock()
     result = await generate_stream(
         payload=payload,
         current_user=current_user,
         wide_event=wide_event,
         agent_service=agent_service,
+        background_tasks=background_tasks,
         _=None,
     )
 
@@ -119,11 +123,13 @@ async def test_ai_controller_v2_generate_stream_with_long_message():
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
 
+    background_tasks = MagicMock()
     await generate_stream(
         payload=payload,
         current_user=current_user,
         wide_event=wide_event,
         agent_service=agent_service,
+        background_tasks=background_tasks,
         _=None,
     )
 
@@ -143,11 +149,13 @@ async def test_ai_controller_v2_generate_stream_preserves_rate_limiting():
 
     # Rate limiting is enforced by FastAPI dependency, not called inside generate_stream
     # Passing None for the resolved dependency value should not raise any exception
+    background_tasks = MagicMock()
     result = await generate_stream(
         payload=payload,
         current_user=current_user,
         wide_event=wide_event,
         agent_service=agent_service,
+        background_tasks=background_tasks,
         _=None,  # Rate limit dependency resolved value
     )
 
@@ -169,11 +177,13 @@ async def test_ai_controller_v2_generate_stream_error_handling():
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
 
+    background_tasks = MagicMock()
     result = await generate_stream(
         payload=payload,
         current_user=current_user,
         wide_event=wide_event,
         agent_service=agent_service,
+        background_tasks=background_tasks,
         _=None,
     )
 
@@ -211,11 +221,13 @@ async def test_ai_controller_v2_generate_stream_maintains_conversation_context()
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
 
+    background_tasks = MagicMock()
     await generate_stream(
         payload=payload,
         current_user=current_user,
         wide_event=wide_event,
         agent_service=agent_service,
+        background_tasks=background_tasks,
         _=None,
     )
 
@@ -248,11 +260,13 @@ async def test_ai_controller_v2_generate_stream_sse_format_compliance():
 
     agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
 
+    background_tasks = MagicMock()
     result = await generate_stream(
         payload=payload,
         current_user=current_user,
         wide_event=wide_event,
         agent_service=agent_service,
+        background_tasks=background_tasks,
         _=None,
     )
 
