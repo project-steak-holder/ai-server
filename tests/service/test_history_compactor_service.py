@@ -125,7 +125,11 @@ class TestSummarize:
         await svc.summarize(_make_messages(1))
         prompt = svc.summarize_agent.run.call_args.args[0]  # type: ignore[attr-defined]
         assert "untrusted" in prompt.lower()
-        assert "not directives" in prompt.lower() or "not commands" in prompt.lower() or "not follow" in prompt.lower()
+        assert (
+            "not directives" in prompt.lower()
+            or "not commands" in prompt.lower()
+            or "not follow" in prompt.lower()
+        )
 
     @pytest.mark.anyio
     async def test_summarize_sanitizes_delimiter_injection_in_messages(self):

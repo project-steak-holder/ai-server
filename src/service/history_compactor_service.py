@@ -95,9 +95,7 @@ class HistoryCompactorService:
         sections: list[str] = []
         if previous_summary:
             safe_summary = sanitize_for_prompt(previous_summary)
-            sections.append(
-                f"<previous_summary>\n{safe_summary}\n</previous_summary>"
-            )
+            sections.append(f"<previous_summary>\n{safe_summary}\n</previous_summary>")
         sections.append(f"<transcript>\n{transcript_body}\n</transcript>")
 
         prompt = (
