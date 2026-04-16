@@ -4,7 +4,7 @@ from src.service.message_service import MessageService
 from src.schemas.message_model import Message
 
 
-TOKEN_THRESHOLD = 100_000
+TOKEN_THRESHOLD = 1_000
 
 
 class SummaryService:
@@ -86,16 +86,16 @@ class SummaryService:
             validated = [
                 Message.model_validate(m, from_attributes=True) for m in new_messages
             ]
-            summary_text = await self.history_compactor_service.summarize(validated)
-
-            if summary.content:
-                summary_text = summary.content + "\n\n" + summary_text
+            summary_text = await self.history_compactor_service.summarize(
+                validated,
+                previous_summary=summary.content,
+            )
 
             await self.update_summary(
                 conversation_id=conversation_id,
                 content=summary_text,
                 token_count=0,
-                window_start=first_msg_time,
+                window_start=last_msg_time,
                 window_end=last_msg_time,
             )
         else:
