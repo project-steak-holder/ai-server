@@ -4,7 +4,7 @@ from src.service.message_service import MessageService
 from src.schemas.message_model import Message
 
 
-TOKEN_THRESHOLD = 1_000
+TOKEN_THRESHOLD = 100_000
 
 
 class SummaryService:
