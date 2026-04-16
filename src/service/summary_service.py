@@ -70,7 +70,7 @@ class SummaryService:
         first_msg_time = new_messages[0].created_at
         last_msg_time = new_messages[-1].created_at
 
-        if summary is None:
+        if summary is None or summary.window_end is None:
             await self.update_summary(
                 conversation_id=conversation_id,
                 content=None,
