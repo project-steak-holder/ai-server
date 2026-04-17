@@ -6,10 +6,11 @@ unit tests for agent_service
 
 import pytest
 import uuid
+from datetime import datetime, timezone
 
 from unittest.mock import patch, AsyncMock, MagicMock
 from src.exceptions.llm_response_exception import LlmResponseException
-from pydantic_ai import ModelRequest, ModelResponse, UserPromptPart, TextPart
+from pydantic_ai import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from src.schemas.persona_model import Persona
 from src.schemas.project_model import Project
 from src.schemas.message_model import Message, MessageType
@@ -71,20 +72,11 @@ async def test_load_history(agent_service, mock_message_service):
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_success(agent_service, mock_compactor):
+async def test_process_agent_query_stream_success(agent_service):
     """Test process_agent_query_stream with PydanticAI streaming."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
     content = "What bikes do you have?"
-
-    # Prepare a compacted history as ModelRequest/ModelResponse objects
-    compacted_history = [
-        ModelRequest(parts=[UserPromptPart(content="What bikes do you have?")]),
-        ModelResponse(
-            parts=[TextPart(content="We have mountain bikes and road bikes.")]
-        ),
-    ]
-    mock_compactor.summarize_old_messages.return_value = compacted_history
 
     # Mock streaming chunks as AgentResponse objects
     from src.agents.stakeholder_agent import AgentResponse
@@ -103,6 +95,10 @@ async def test_process_agent_query_stream_success(agent_service, mock_compactor)
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ) as mock_run_stream,
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
         patch.object(
             agent_service.sentiment_service,
             "get_persona_w_current_sentiment",
@@ -120,9 +116,6 @@ async def test_process_agent_query_stream_success(agent_service, mock_compactor)
         ),
         patch.object(agent_service.sentiment_service, "apply_delta", new=AsyncMock()),
     ):
-        # Use real Message objects for mocks to avoid Pydantic validation errors
-        from src.schemas.message_model import Message, MessageType
-
         mock_ai_message = Message(
             id=uuid.uuid4(),
             conversation_id=uuid.UUID(conversation_id),
@@ -152,8 +145,8 @@ async def test_process_agent_query_stream_success(agent_service, mock_compactor)
         ):
             chunks.append(chunk)
 
-        # Verify compactor and streaming agent were called
-        mock_compactor.summarize_old_messages.assert_called_once()
+        # Verify summary repo was queried and streaming agent was called
+        agent_service.summary_service.summary_repository.get_conversation_summary.assert_called_once()
         mock_run_stream.assert_called_once()
 
         # Verify we got SSE formatted chunks + completion
@@ -186,9 +179,7 @@ async def test_process_agent_query_stream_success(agent_service, mock_compactor)
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_handles_llm_error(
-    agent_service, mock_compactor
-):
+async def test_process_agent_query_stream_handles_llm_error(agent_service):
     """Test process_agent_query_stream saves error message and yields SSE error event."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -201,6 +192,10 @@ async def test_process_agent_query_stream_handles_llm_error(
                 message="LLM streaming timeout", details={"error": "timeout"}
             ),
         ) as mock_run_stream,
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
         patch.object(
             agent_service.sentiment_service,
             "get_current_sentiment_value",
@@ -228,7 +223,7 @@ async def test_process_agent_query_stream_handles_llm_error(
         assert error_data["error"] is True
         assert error_data["complete"] is True
 
-        mock_compactor.summarize_old_messages.assert_called_once()
+        agent_service.summary_service.summary_repository.get_conversation_summary.assert_called_once()
         mock_run_stream.assert_called_once()
 
         # Verify user message was saved
@@ -245,9 +240,7 @@ async def test_process_agent_query_stream_handles_llm_error(
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_preserves_context_loading(
-    agent_service, mock_compactor
-):
+async def test_process_agent_query_stream_preserves_context_loading(agent_service):
     """Test that streaming preserves the same context loading as non-streaming."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -261,6 +254,10 @@ async def test_process_agent_query_stream_preserves_context_loading(
         patch(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
+        ),
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
         ),
         patch.object(agent_service, "model_service", MagicMock()) as mock_model_service,
         patch.object(
@@ -353,14 +350,12 @@ async def test_process_agent_query_stream_preserves_context_loading(
         calls = [call[0][0] for call in mock_model_service.get_model.call_args_list]
         assert "project" in calls
 
-        # Verify compaction was called
-        mock_compactor.summarize_old_messages.assert_called_once()
+        # Verify summary repo was queried
+        agent_service.summary_service.summary_repository.get_conversation_summary.assert_called_once()
 
 
 @pytest.mark.anyio
-async def test_process_agent_query_stream_accumulates_full_response(
-    agent_service, mock_compactor
-):
+async def test_process_agent_query_stream_accumulates_full_response(agent_service):
     """Test that streaming accumulates chunks into complete response for database save."""
     user_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
@@ -385,6 +380,10 @@ async def test_process_agent_query_stream_accumulates_full_response(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_streaming_chunks(),
         ),
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
         patch.object(
             agent_service.sentiment_service,
             "get_persona_w_current_sentiment",
@@ -402,9 +401,6 @@ async def test_process_agent_query_stream_accumulates_full_response(
         ),
         patch.object(agent_service.sentiment_service, "apply_delta", new=AsyncMock()),
     ):
-        # Use real Message objects for mocks to avoid Pydantic validation errors
-        from src.schemas.message_model import Message, MessageType
-
         mock_ai_message = Message(
             id=uuid.uuid4(),
             conversation_id=uuid.UUID(conversation_id),
@@ -442,7 +438,7 @@ async def test_process_agent_query_stream_accumulates_full_response(
 
 
 @pytest.mark.anyio
-async def test_streaming_sentiment_absolute(agent_service, mock_compactor):
+async def test_streaming_sentiment_absolute(agent_service):
     """Streaming: LLM returns absolute sentiment (should persist it directly)."""
     user_id = "user5"
     conversation_id = uuid.uuid4()
@@ -486,6 +482,10 @@ async def test_streaming_sentiment_absolute(agent_service, mock_compactor):
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_stream(),
         ),
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
         patch.object(
             agent_service.sentiment_service,
             "get_persona_w_current_sentiment",
@@ -514,9 +514,7 @@ async def test_streaming_sentiment_absolute(agent_service, mock_compactor):
 
 
 @pytest.mark.anyio
-async def test_streaming_next_turn_uses_updated_sentiment(
-    agent_service, mock_compactor
-):
+async def test_streaming_next_turn_uses_updated_sentiment(agent_service):
     """Streaming: Next turn uses updated sentiment from DB."""
     user_id = "user6"
     conversation_id = uuid.uuid4()
@@ -562,6 +560,10 @@ async def test_streaming_next_turn_uses_updated_sentiment(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_stream1(),
         ),
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
         patch.object(
             agent_service.sentiment_service,
             "get_persona_w_current_sentiment",
@@ -604,6 +606,10 @@ async def test_streaming_next_turn_uses_updated_sentiment(
             "src.service.agent_service._run_stakeholder_query_stream",
             return_value=mock_stream2(),
         ),
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
         patch.object(
             agent_service.sentiment_service,
             "get_persona_w_current_sentiment",
@@ -629,3 +635,315 @@ async def test_streaming_next_turn_uses_updated_sentiment(
         mock_update_sentiment.assert_awaited_with(
             conversation_id=conversation_id, new_value=-1.0
         )
+
+
+@pytest.mark.anyio
+async def test_process_agent_query_stream_uses_cached_summary(agent_service):
+    """Test that cached summary content is prepended to history."""
+    user_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    content = "Test with summary"
+
+    from src.agents.stakeholder_agent import AgentResponse
+
+    async def mock_stream():
+        yield AgentResponse(content="response")
+
+    # Set up a cached summary
+    mock_summary = MagicMock()
+    mock_summary.content = "Previous conversation summary"
+    agent_service.summary_service.summary_repository.get_conversation_summary = (
+        AsyncMock(return_value=mock_summary)
+    )
+
+    with (
+        patch(
+            "src.service.agent_service._run_stakeholder_query_stream",
+            return_value=mock_stream(),
+        ) as mock_run_stream,
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_persona_w_current_sentiment",
+            new=AsyncMock(return_value=agent_service.load_persona()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=0.0),
+        ),
+    ):
+        mock_ai_msg = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content="response",
+            type=MessageType.AI,
+        )
+        agent_service.message_service.save_ai_message = AsyncMock(
+            return_value=mock_ai_msg
+        )
+
+        async for _ in agent_service.process_agent_query_stream(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        ):
+            pass
+
+        call_kwargs = mock_run_stream.call_args.kwargs
+        history = call_kwargs["history"]
+        assert len(history) >= 2
+        assert isinstance(history[1], ModelResponse)
+        assert history[1].parts[0].content == "Previous conversation summary"  # type: ignore[union-attr]
+
+
+@pytest.mark.anyio
+async def test_summary_prepended_history_starts_with_user_role(agent_service):
+    """Gemini rejects a model-role first turn; history[0] must be ModelRequest."""
+    user_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    content = "Follow-up question"
+
+    from src.agents.stakeholder_agent import AgentResponse
+
+    async def mock_stream():
+        yield AgentResponse(content="response")
+
+    summary_text = "Prior conversation summary"
+    mock_summary = MagicMock()
+    mock_summary.content = summary_text
+    agent_service.summary_service.summary_repository.get_conversation_summary = (
+        AsyncMock(return_value=mock_summary)
+    )
+
+    with (
+        patch(
+            "src.service.agent_service._run_stakeholder_query_stream",
+            return_value=mock_stream(),
+        ) as mock_run_stream,
+        patch(
+            "src.service.agent_service.convert_messages_to_model_messages",
+            return_value=[],
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_persona_w_current_sentiment",
+            new=AsyncMock(return_value=agent_service.load_persona()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=0.0),
+        ),
+    ):
+        mock_ai_msg = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content="response",
+            type=MessageType.AI,
+        )
+        agent_service.message_service.save_ai_message = AsyncMock(
+            return_value=mock_ai_msg
+        )
+
+        async for _ in agent_service.process_agent_query_stream(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        ):
+            pass
+
+        history = mock_run_stream.call_args.kwargs["history"]
+
+        assert isinstance(history[0], ModelRequest)
+        assert isinstance(history[0].parts[0], UserPromptPart)
+
+        summary_texts = [
+            p.content
+            for m in history
+            if isinstance(m, ModelResponse)
+            for p in m.parts
+            if isinstance(p, TextPart)
+        ]
+        assert summary_text in summary_texts
+
+
+@pytest.mark.anyio
+async def test_history_loads_only_messages_after_summary_window(agent_service):
+    """Raw-history fetch cuts at window_start (summarized boundary), not window_end."""
+    user_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    content = "question"
+
+    window_start = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    window_end = datetime(2026, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
+    mock_summary = MagicMock()
+    mock_summary.content = "summary"
+    mock_summary.window_start = window_start
+    mock_summary.window_end = window_end
+    agent_service.summary_service.summary_repository.get_conversation_summary = (
+        AsyncMock(return_value=mock_summary)
+    )
+
+    agent_service.message_service.get_messages_after = AsyncMock(return_value=[])
+    agent_service.message_service.get_conversation_history = AsyncMock(return_value=[])
+
+    from src.agents.stakeholder_agent import AgentResponse
+
+    async def mock_stream():
+        yield AgentResponse(content="reply")
+
+    with (
+        patch(
+            "src.service.agent_service._run_stakeholder_query_stream",
+            return_value=mock_stream(),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_persona_w_current_sentiment",
+            new=AsyncMock(return_value=agent_service.load_persona()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=0.0),
+        ),
+    ):
+        mock_ai = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content="reply",
+            type=MessageType.AI,
+        )
+        agent_service.message_service.save_ai_message = AsyncMock(return_value=mock_ai)
+
+        async for _ in agent_service.process_agent_query_stream(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        ):
+            pass
+
+    agent_service.message_service.get_messages_after.assert_called_once()
+    call = agent_service.message_service.get_messages_after.call_args
+    assert call.kwargs.get("after") == window_start or window_start in call.args
+    agent_service.message_service.get_conversation_history.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_history_loads_full_conversation_when_no_summary_window(agent_service):
+    """With no summary (or no window_end), fall back to full-history load."""
+    user_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    content = "question"
+
+    agent_service.summary_service.summary_repository.get_conversation_summary = (
+        AsyncMock(return_value=None)
+    )
+
+    agent_service.message_service.get_messages_after = AsyncMock(return_value=[])
+    agent_service.message_service.get_conversation_history = AsyncMock(return_value=[])
+
+    from src.agents.stakeholder_agent import AgentResponse
+
+    async def mock_stream():
+        yield AgentResponse(content="reply")
+
+    with (
+        patch(
+            "src.service.agent_service._run_stakeholder_query_stream",
+            return_value=mock_stream(),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_persona_w_current_sentiment",
+            new=AsyncMock(return_value=agent_service.load_persona()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=0.0),
+        ),
+    ):
+        mock_ai = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content="reply",
+            type=MessageType.AI,
+        )
+        agent_service.message_service.save_ai_message = AsyncMock(return_value=mock_ai)
+
+        async for _ in agent_service.process_agent_query_stream(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        ):
+            pass
+
+    agent_service.message_service.get_conversation_history.assert_called_once()
+    agent_service.message_service.get_messages_after.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_history_not_truncated_when_summary_has_window_but_no_content(
+    agent_service,
+):
+    """Transient state: first-compaction row has windows but content=None; must not drop context."""
+    user_id = str(uuid.uuid4())
+    conversation_id = str(uuid.uuid4())
+    content = "question"
+
+    window_start = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    window_end = datetime(2026, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
+    mock_summary = MagicMock()
+    mock_summary.content = None
+    mock_summary.window_start = window_start
+    mock_summary.window_end = window_end
+    agent_service.summary_service.summary_repository.get_conversation_summary = (
+        AsyncMock(return_value=mock_summary)
+    )
+
+    agent_service.message_service.get_messages_after = AsyncMock(return_value=[])
+    agent_service.message_service.get_conversation_history = AsyncMock(return_value=[])
+
+    from src.agents.stakeholder_agent import AgentResponse
+
+    async def mock_stream():
+        yield AgentResponse(content="reply")
+
+    with (
+        patch(
+            "src.service.agent_service._run_stakeholder_query_stream",
+            return_value=mock_stream(),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_persona_w_current_sentiment",
+            new=AsyncMock(return_value=agent_service.load_persona()),
+        ),
+        patch.object(
+            agent_service.sentiment_service,
+            "get_current_sentiment_value",
+            new=AsyncMock(return_value=0.0),
+        ),
+    ):
+        mock_ai = Message(
+            id=uuid.uuid4(),
+            conversation_id=uuid.UUID(conversation_id),
+            content="reply",
+            type=MessageType.AI,
+        )
+        agent_service.message_service.save_ai_message = AsyncMock(return_value=mock_ai)
+
+        async for _ in agent_service.process_agent_query_stream(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            content=content,
+        ):
+            pass
+
+    agent_service.message_service.get_conversation_history.assert_called_once()
+    agent_service.message_service.get_messages_after.assert_not_called()

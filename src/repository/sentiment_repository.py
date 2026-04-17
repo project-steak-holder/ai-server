@@ -8,6 +8,8 @@ __all__ = ["SentimentRepository"]
 class SentimentRepository(BaseCRUDRepository[Sentiment]):
     """Repository for managing database operations related to sentiment."""
 
+    model = Sentiment
+
     async def get_sentiment(self, conversation_id: str) -> Sentiment | None:
         """Fetch the sentiment record for a given conversation."""
         stmt = select(Sentiment).where(Sentiment.conversation_id == conversation_id)
