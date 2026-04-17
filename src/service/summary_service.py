@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from src.repository.summary_repository import SummaryRepository
 from src.service.history_compactor_service import HistoryCompactorService
 from src.service.message_service import MessageService
@@ -27,8 +29,8 @@ class SummaryService:
         conversation_id: str,
         content: str | None,
         token_count: int,
-        window_start,
-        window_end,
+        window_start: datetime | None,
+        window_end: datetime | None,
     ):
         return await self.summary_repository.update_summary(
             conversation_id=conversation_id,

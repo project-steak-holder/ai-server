@@ -1,10 +1,9 @@
 """Base CRUD repository with generic database operations."""
 
-from typing import Generic, Optional, Sequence, TypeVar
+from typing import Any, Generic, Optional, Sequence, TypeVar
 
 from src.models.base import Base
-from sqlalchemy import select
-from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy import ColumnExpressionArgument, select
 from sqlalchemy.sql.selectable import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,7 +37,7 @@ class BaseCRUDRepository(Generic[ModelT]):
         field: str,
         value: object,
         *,
-        order_by: ColumnElement | None = None,
+        order_by: ColumnExpressionArgument[Any] | None = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
     ) -> list[ModelT]:

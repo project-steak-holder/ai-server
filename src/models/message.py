@@ -32,12 +32,12 @@ class Message(Base):
     )
     content = Column(Text, nullable=False)
     type: Mapped[MessageType] = mapped_column(SQLEnum(MessageType), nullable=False)
-    created_at = Column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
