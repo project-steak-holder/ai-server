@@ -1,8 +1,7 @@
 import uuid
-from .base import Base
+
 from sqlalchemy import (
     UUID,
-    Column,
     Numeric,
     ForeignKey,
     Index,
@@ -10,11 +9,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from .base import Base
+
 
 class Sentiment(Base):
     __tablename__ = "sentiment"
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    conversation_id = Column(
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID,
         ForeignKey("conversation.id"),
         nullable=False,
