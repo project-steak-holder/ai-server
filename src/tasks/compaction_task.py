@@ -38,25 +38,25 @@ async def post_message_hook(
     4. Update window_end = last message's created_at.
     5. If running token_count >= 100k, run compaction.
     """
-    async with SessionLocal() as session:
-        summary_repo = SummaryRepository(session)
-        message_repo = MessageRepository(session)
-        message_service = MessageService(message_repository=message_repo)
-        summary_service = SummaryService(
-            summary_repository=summary_repo,
-            message_service=message_service,
-            history_compactor_service=_get_compactor(),
-        )
-
-        try:
-            await summary_service.process_conversation(conversation_id)
-        except Exception as e:
-            logger.error(
-                {
-                    "event": "compaction_task_failed",
-                    "conversation_id": conversation_id,
-                    "correlation_id": correlation_id,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                }
+    try:
+        async with SessionLocal() as session:
+            summary_repo = SummaryRepository(session)
+            message_repo = MessageRepository(session)
+            message_service = MessageService(message_repository=message_repo)
+            summary_service = SummaryService(
+                summary_repository=summary_repo,
+                message_service=message_service,
+                history_compactor_service=_get_compactor(),
             )
+
+            await summary_service.process_conversation(conversation_id)
+    except Exception as e:
+        logger.error(
+            {
+                "event": "compaction_task_failed",
+                "conversation_id": conversation_id,
+                "correlation_id": correlation_id,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            }
+        )
