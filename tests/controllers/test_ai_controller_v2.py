@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from src.controllers.ai_controller_v2 import generate_stream
 from src.schemas.ai import GenerateRequest
 from src.dependencies import AuthenticatedUser
+from src.tasks.compaction_task import post_message_hook
 
 
 @pytest.mark.anyio
@@ -288,3 +289,31 @@ async def test_ai_controller_v2_generate_stream_sse_format_compliance():
         json_content = chunk[6:-2]  # Remove "data: " and "\n\n"
         parsed = json.loads(json_content)  # Should not raise exception
         assert isinstance(parsed, dict)
+
+
+@pytest.mark.anyio
+async def test_generate_stream_spawns_post_message_hook_with_correlation_id():
+    payload = GenerateRequest(conversation_id="conv-1", content="hi")
+    current_user = AuthenticatedUser(user_id="user-1")
+    wide_event = MagicMock()
+    wide_event.correlation_id = "corr-xyz"
+    agent_service = MagicMock()
+
+    async def mock_stream():
+        yield 'data: {"complete": true}\n\n'
+
+    agent_service.process_agent_query_stream = MagicMock(return_value=mock_stream())
+    background_tasks = MagicMock()
+
+    await generate_stream(
+        payload=payload,
+        current_user=current_user,
+        wide_event=wide_event,
+        agent_service=agent_service,
+        background_tasks=background_tasks,
+        _=None,
+    )
+
+    background_tasks.add_task.assert_called_once_with(
+        post_message_hook, "conv-1", correlation_id="corr-xyz"
+    )
