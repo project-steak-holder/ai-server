@@ -7,7 +7,7 @@ import os
 import re
 from typing import cast, AsyncGenerator, Optional
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext, ModelMessage
+from pydantic_ai import Agent, RunContext, ModelMessage, ModelResponse
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
@@ -37,6 +37,31 @@ def strip_think_tags(text: str, strip_whitespace: bool = False) -> str:
         return text
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
     return cleaned.strip() if strip_whitespace else cleaned
+
+
+def _extract_llm_response_metadata(streamed_result) -> dict[str, object]:
+    try:
+        messages = streamed_result.all_messages()
+        last_response = next(
+            (m for m in reversed(messages) if isinstance(m, ModelResponse)), None
+        )
+        if last_response is None:
+            return {}
+        provider_details = getattr(last_response, "provider_details", None)
+        provider_finish_reason = (
+            provider_details.get("finish_reason")
+            if isinstance(provider_details, dict)
+            else None
+        )
+        return {
+            "llm_finish_reason": getattr(last_response, "finish_reason", None),
+            "llm_provider_finish_reason": provider_finish_reason,
+            "llm_provider_name": getattr(last_response, "provider_name", None),
+            "llm_model_name": getattr(last_response, "model_name", None),
+            "llm_response_id": getattr(last_response, "provider_response_id", None),
+        }
+    except Exception as e:
+        return {"llm_metadata_probe_error": type(e).__name__}
 
 
 class AgentResponse(BaseModel):
@@ -212,6 +237,7 @@ async def run_stakeholder_query_stream(
 
             # After stream completes, check final result for sentiment
             final = await streamed_result.get_output()
+            add_event_context(**_extract_llm_response_metadata(streamed_result))
             add_event_context(
                 final_sentiment=final.sentiment,
                 final_detected_cues=final.detected_cues,
