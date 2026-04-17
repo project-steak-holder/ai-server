@@ -17,11 +17,9 @@ class Sentiment(Base):
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID,
         ForeignKey("conversation.id", ondelete="CASCADE"),
-        nullable=False,
     )
     sentiment: Mapped[float] = mapped_column(
         Numeric(4, 2, asdecimal=False),
-        nullable=False,
         default=0.00,
     )
     __table_args__ = (

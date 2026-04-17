@@ -20,25 +20,21 @@ class Message(Base):
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID,
         ForeignKey("conversation.id", ondelete="CASCADE"),
-        nullable=False,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID,
         ForeignKey("neon_auth.user.id"),
-        nullable=False,
     )
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    type: Mapped[MessageType] = mapped_column(SQLEnum(MessageType), nullable=False)
+    content: Mapped[str] = mapped_column(Text)
+    type: Mapped[MessageType] = mapped_column(SQLEnum(MessageType))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
-        nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
     )
     __table_args__ = (
         Index("ix_message_conversation_created_at", "conversation_id", "created_at"),
