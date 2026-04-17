@@ -12,8 +12,6 @@ from src.service.summary_service import SummaryService
 from src.service.message_service import MessageService
 from src.dependencies.services import get_history_compactor_service
 
-TOKEN_THRESHOLD = 100_000
-
 
 def _get_compactor() -> HistoryCompactorService:
     """Reuse the singleton compactor from the DI layer."""

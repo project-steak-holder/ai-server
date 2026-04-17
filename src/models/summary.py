@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from sqlalchemy import (
     UUID,
     Column,
@@ -7,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
 )
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
@@ -20,18 +22,18 @@ class Summary(Base):
         nullable=False,
         unique=True,
     )
-    content = Column(Text, nullable=True)
-    token_count = Column(
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_count: Mapped[int] = mapped_column(
         Integer,
         default=0,
         server_default="0",
         nullable=False,
     )
-    window_start = Column(
+    window_start: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
-    window_end = Column(
+    window_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

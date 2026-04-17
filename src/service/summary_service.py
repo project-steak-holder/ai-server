@@ -70,7 +70,7 @@ class SummaryService:
         first_msg_time = new_messages[0].created_at
         last_msg_time = new_messages[-1].created_at
 
-        if summary is None:
+        if summary is None or summary.window_end is None:
             await self.update_summary(
                 conversation_id=conversation_id,
                 content=None,
@@ -86,16 +86,16 @@ class SummaryService:
             validated = [
                 Message.model_validate(m, from_attributes=True) for m in new_messages
             ]
-            summary_text = await self.history_compactor_service.summarize(validated)
-
-            if summary.content:
-                summary_text = summary.content + "\n\n" + summary_text
+            summary_text = await self.history_compactor_service.summarize(
+                validated,
+                previous_summary=summary.content,
+            )
 
             await self.update_summary(
                 conversation_id=conversation_id,
                 content=summary_text,
                 token_count=0,
-                window_start=first_msg_time,
+                window_start=last_msg_time,
                 window_end=last_msg_time,
             )
         else:
