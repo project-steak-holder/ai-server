@@ -3,7 +3,7 @@ Test fixtures for pytest.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
 from datetime import datetime, timezone
 
@@ -262,8 +262,6 @@ def agent_service(mock_message_service, mock_summary_repository):
 @pytest.fixture
 def mock_compactor():
     """Mock HistoryCompactorService to avoid API key requirement in tests."""
-    from unittest.mock import patch
-
     instance = MagicMock()
     instance.summarize = AsyncMock(return_value="Summary of old messages")
     instance.estimate_tokens = MagicMock(side_effect=lambda content: len(content) // 4)
