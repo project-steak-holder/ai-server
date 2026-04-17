@@ -320,7 +320,7 @@ async def test_run_stakeholder_query_stream_logs_llm_response_metadata(
         ):
             pass
 
-        kwargs_seen = {}
+        kwargs_seen: dict[str, object] = {}
         for call in mock_add_context.call_args_list:
             kwargs_seen.update(call.kwargs)
 
