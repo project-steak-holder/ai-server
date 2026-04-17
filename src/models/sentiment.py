@@ -16,7 +16,7 @@ class Sentiment(Base):
     __tablename__ = "sentiment"
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID,
-        ForeignKey("conversation.id"),
+        ForeignKey("conversation.id", ondelete="CASCADE"),
         nullable=False,
     )
     sentiment: Mapped[float] = mapped_column(
