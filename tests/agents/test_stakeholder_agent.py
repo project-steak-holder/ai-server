@@ -260,6 +260,78 @@ async def test_run_stakeholder_query_stream_success(
 
 
 @pytest.mark.anyio
+async def test_run_stakeholder_query_stream_logs_llm_response_metadata(
+    sample_persona, sample_project, sample_history
+):
+    os.environ["AI_PROVIDER_API_KEY"] = "test-key"
+
+    mock_streamed_result = MagicMock()
+
+    class DummyPartial:
+        def __init__(self, content):
+            self.content = content
+            self.sentiment = None
+
+    async def stream_output(*args, **kwargs):
+        yield DummyPartial("truncated ")
+
+    mock_streamed_result.stream_output = stream_output
+    mock_streamed_result.get_output = AsyncMock(
+        return_value=AgentResponse(content="truncated ")
+    )
+    mock_streamed_result.all_messages = MagicMock(
+        return_value=[
+            ModelRequest(parts=[UserPromptPart(content="go")]),
+            ModelResponse(
+                parts=[TextPart(content="truncated ")],
+                finish_reason="content_filter",
+                provider_name="google",
+                model_name="gemini-2.5-flash",
+                provider_response_id="resp-xyz",
+                provider_details={"finish_reason": "SAFETY"},
+            ),
+        ]
+    )
+
+    with (
+        patch("src.agents.stakeholder_agent.get_stakeholder_agent") as mock_get_agent,
+        patch("src.agents.stakeholder_agent.add_event_context") as mock_add_context,
+    ):
+        mock_agent = MagicMock()
+
+        class AsyncCM:
+            async def __aenter__(self):
+                return mock_streamed_result
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        mock_agent.run_stream = MagicMock(return_value=AsyncCM())
+        mock_get_agent.return_value = mock_agent
+
+        async for _ in run_stakeholder_query_stream(
+            message="go",
+            persona=sample_persona,
+            project=sample_project,
+            history=sample_history,
+            sentiment_scale=dummy_sentiment_scale(),
+            listening_cues=dummy_listening_cues(),
+            instructions=dummy_instructions(),
+        ):
+            pass
+
+        kwargs_seen: dict[str, object] = {}
+        for call in mock_add_context.call_args_list:
+            kwargs_seen.update(call.kwargs)
+
+        assert kwargs_seen.get("llm_finish_reason") == "content_filter"
+        assert kwargs_seen.get("llm_provider_name") == "google"
+        assert kwargs_seen.get("llm_model_name") == "gemini-2.5-flash"
+        assert kwargs_seen.get("llm_response_id") == "resp-xyz"
+        assert kwargs_seen.get("llm_provider_finish_reason") == "SAFETY"
+
+
+@pytest.mark.anyio
 async def test_run_stakeholder_query_stream_with_empty_history(
     sample_persona, sample_project
 ):

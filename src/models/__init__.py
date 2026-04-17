@@ -5,6 +5,7 @@ from .conversation import Conversation
 from .message import Message, MessageType
 from .user import User
 from .summary import Summary
+from .sentiment import Sentiment
 
 __all__ = [
     "Base",
@@ -13,4 +14,5 @@ __all__ = [
     "MessageType",
     "User",
     "Summary",
+    "Sentiment",
 ]

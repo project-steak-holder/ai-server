@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from src.repository.summary_repository import SummaryRepository
 from src.service.history_compactor_service import HistoryCompactorService
 from src.service.message_service import MessageService
@@ -27,8 +29,8 @@ class SummaryService:
         conversation_id: str,
         content: str | None,
         token_count: int,
-        window_start,
-        window_end,
+        window_start: datetime | None,
+        window_end: datetime | None,
     ):
         return await self.summary_repository.update_summary(
             conversation_id=conversation_id,
@@ -70,7 +72,7 @@ class SummaryService:
         first_msg_time = new_messages[0].created_at
         last_msg_time = new_messages[-1].created_at
 
-        if summary is None:
+        if summary is None or summary.window_end is None:
             await self.update_summary(
                 conversation_id=conversation_id,
                 content=None,
@@ -83,19 +85,31 @@ class SummaryService:
         updated_token_count = summary.token_count + new_tokens
 
         if updated_token_count >= TOKEN_THRESHOLD:
-            validated = [
-                Message.model_validate(m, from_attributes=True) for m in new_messages
-            ]
-            summary_text = await self.history_compactor_service.summarize(validated)
+            if summary.content is None:
+                messages_to_summarize = (
+                    await self.message_service.get_all_messages_by_conversation(
+                        conversation_id
+                    )
+                )
+            else:
+                messages_to_summarize = await self.message_service.get_messages_after(
+                    conversation_id, summary.window_start
+                )
 
-            if summary.content:
-                summary_text = summary.content + "\n\n" + summary_text
+            validated = [
+                Message.model_validate(m, from_attributes=True)
+                for m in messages_to_summarize
+            ]
+            summary_text = await self.history_compactor_service.summarize(
+                validated,
+                previous_summary=summary.content,
+            )
 
             await self.update_summary(
                 conversation_id=conversation_id,
                 content=summary_text,
                 token_count=0,
-                window_start=first_msg_time,
+                window_start=last_msg_time,
                 window_end=last_msg_time,
             )
         else:

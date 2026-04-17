@@ -1,37 +1,30 @@
 import uuid
+from datetime import datetime
+
 from sqlalchemy import (
     UUID,
-    Column,
     Integer,
     Text,
     DateTime,
     ForeignKey,
 )
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
 
 class Summary(Base):
     __tablename__ = "summary"
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    conversation_id = Column(
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID,
         ForeignKey("conversation.id", ondelete="CASCADE"),
-        nullable=False,
         unique=True,
     )
-    content = Column(Text, nullable=True)
-    token_count = Column(
+    content: Mapped[str | None] = mapped_column(Text)
+    token_count: Mapped[int] = mapped_column(
         Integer,
         default=0,
         server_default="0",
-        nullable=False,
     )
-    window_start = Column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-    window_end = Column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
+    window_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
