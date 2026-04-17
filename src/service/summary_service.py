@@ -85,8 +85,20 @@ class SummaryService:
         updated_token_count = summary.token_count + new_tokens
 
         if updated_token_count >= TOKEN_THRESHOLD:
+            if summary.content is None:
+                messages_to_summarize = (
+                    await self.message_service.get_all_messages_by_conversation(
+                        conversation_id
+                    )
+                )
+            else:
+                messages_to_summarize = await self.message_service.get_messages_after(
+                    conversation_id, summary.window_start
+                )
+
             validated = [
-                Message.model_validate(m, from_attributes=True) for m in new_messages
+                Message.model_validate(m, from_attributes=True)
+                for m in messages_to_summarize
             ]
             summary_text = await self.history_compactor_service.summarize(
                 validated,
