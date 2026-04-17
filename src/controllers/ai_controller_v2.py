@@ -35,7 +35,11 @@ async def generate_stream(
     )
 
     # Spawn background task for token counting and compaction
-    background_tasks.add_task(post_message_hook, str(payload.conversation_id))
+    background_tasks.add_task(
+        post_message_hook,
+        str(payload.conversation_id),
+        correlation_id=wide_event.correlation_id,
+    )
 
     return StreamingResponse(
         content=tracked_stream(streaming_response, wide_event),

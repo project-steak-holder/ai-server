@@ -179,7 +179,15 @@ class TestProcessConversation:
             _mock_message(big_content, t_first_new),
             _mock_message(big_content, t_last_new),
         ]
-        mock_message_service.get_messages_after.return_value = messages
+
+        async def _get_messages_after(conversation_id, after):
+            if after in (prev_end, prev_start):
+                return messages
+            return []
+
+        mock_message_service.get_messages_after = AsyncMock(
+            side_effect=_get_messages_after
+        )
 
         # Sanity: we are in fact at/over threshold
         new_tokens = sum(len(m.content) // 4 for m in messages)
@@ -199,3 +207,91 @@ class TestProcessConversation:
         # anchored at the last compacted message's timestamp.
         assert update_kwargs["window_start"] == t_last_new
         assert update_kwargs["window_end"] == t_last_new
+
+    @pytest.mark.anyio
+    async def test_compaction_includes_accumulated_messages_when_no_prior_summary(
+        self, service, mock_summary_repo, mock_message_service, mock_compactor
+    ):
+        """Compaction must summarize every accumulated message when content is None,
+        not just the batch that tripped the threshold."""
+        prev_start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        prior_messages = [
+            _mock_message(f"m{i}", prev_start + timedelta(seconds=i))
+            for i in range(1, 6)
+        ]
+        prev_end = prior_messages[-1].created_at
+
+        summary = _mock_summary(
+            content=None,
+            token_count=TOKEN_THRESHOLD // 2,
+            window_start=prev_start,
+            window_end=prev_end,
+        )
+        mock_summary_repo.get_conversation_summary.return_value = summary
+
+        big_content = "x" * (TOKEN_THRESHOLD * 4)
+        t_trip = prev_end + timedelta(seconds=10)
+        trip_messages = [_mock_message(big_content, t_trip)]
+
+        mock_message_service.get_messages_after.return_value = trip_messages
+        mock_message_service.get_all_messages_by_conversation.return_value = (
+            prior_messages + trip_messages
+        )
+
+        assert TOKEN_THRESHOLD // 2 + len(big_content) // 4 >= TOKEN_THRESHOLD
+
+        await service.process_conversation("conv-1")
+
+        mock_compactor.summarize.assert_awaited_once()
+        compactor_call = mock_compactor.summarize.await_args
+        summarized_contents = [m.content for m in compactor_call.args[0]]
+        assert summarized_contents == ["m1", "m2", "m3", "m4", "m5", big_content]
+        assert compactor_call.kwargs["previous_summary"] is None
+
+    @pytest.mark.anyio
+    async def test_compaction_includes_accumulated_messages_since_prior_compaction(
+        self, service, mock_summary_repo, mock_message_service, mock_compactor
+    ):
+        """Compaction must summarize every message since the prior compaction
+        boundary, not just the batch that tripped this threshold."""
+        last_compact_ts = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        prior_summary_content = "prior summary v1"
+
+        intermediate_messages = [
+            _mock_message(f"m{i}", last_compact_ts + timedelta(seconds=i))
+            for i in (8, 9, 10)
+        ]
+        prev_end = intermediate_messages[-1].created_at
+
+        summary = _mock_summary(
+            content=prior_summary_content,
+            token_count=TOKEN_THRESHOLD // 2,
+            window_start=last_compact_ts,
+            window_end=prev_end,
+        )
+        mock_summary_repo.get_conversation_summary.return_value = summary
+
+        big_content = "x" * (TOKEN_THRESHOLD * 4)
+        t_trip = prev_end + timedelta(seconds=1)
+        trip_messages = [_mock_message(big_content, t_trip)]
+
+        async def _get_messages_after(conversation_id, after):
+            if after == prev_end:
+                return trip_messages
+            if after == last_compact_ts:
+                return intermediate_messages + trip_messages
+            return []
+
+        mock_message_service.get_messages_after = AsyncMock(
+            side_effect=_get_messages_after
+        )
+
+        assert TOKEN_THRESHOLD // 2 + len(big_content) // 4 >= TOKEN_THRESHOLD
+
+        await service.process_conversation("conv-1")
+
+        mock_compactor.summarize.assert_awaited_once()
+        compactor_call = mock_compactor.summarize.await_args
+        summarized_contents = [m.content for m in compactor_call.args[0]]
+        assert summarized_contents == ["m8", "m9", "m10", big_content]
+        assert compactor_call.kwargs["previous_summary"] == prior_summary_content

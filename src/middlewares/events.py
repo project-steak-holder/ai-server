@@ -54,6 +54,7 @@ class WideEvent:
     def __init__(self, request: Request):
         self.deferred = False
         self.emitted = False
+        self.correlation_id: str | None = None
         self.context: Dict[str, Any] = {
             **_env_context,
             "method": request.method,

@@ -194,6 +194,7 @@ class AgentService:
 
         full_response = ""
         last_sentiment = 0.00
+        stream_terminal_state = "cancelled"
         try:
             async for chunk in self.run_stakeholder_query_stream(
                 content=content,
@@ -209,6 +210,7 @@ class AgentService:
 
             add_event_context(ai_response_length=len(full_response))
             yield f"data: {json.dumps({'content': full_response, 'complete': True})}\n\n"
+            stream_terminal_state = "completed"
 
         except Exception as e:
             full_response = "I'm sorry, I encountered an unexpected error and was unable to respond."
@@ -217,8 +219,13 @@ class AgentService:
                 error_message=str(e.__cause__) if e.__cause__ else str(e),
             )
             yield f"data: {json.dumps({'content': full_response, 'error': True, 'complete': True})}\n\n"
+            stream_terminal_state = "errored"
 
         finally:
+            add_event_context(
+                stream_terminal_state=stream_terminal_state,
+                persisted_response_length=len(full_response),
+            )
             for action in (
                 self.save_ai_message(
                     user_id=user_id,
