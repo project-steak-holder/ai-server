@@ -45,6 +45,7 @@ jobs:
       AXIOM_INGEST_TOKEN: no-key-needed-for-tests
       AXIOM_INGEST_DATASET: ai-server-events-test
       NODE_ENV: test
+      DISABLE_LOG_INGESTION: "1"  # Disable Axiom ingestion during tests
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
