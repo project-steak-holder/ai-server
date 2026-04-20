@@ -38,27 +38,28 @@ Cross-cutting (auth, rate limiting, logging)
 ```
 ai-server/
 ├── alembic/                     # Database migrations
+├── data/                        # Persona, project, and scale JSON context files
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                  # FastAPI app entry point
-│   ├── config/                  # Environment variables & settings
+│   ├── database.py              # SQLAlchemy engine & session factory
 │   ├── controllers/             # API endpoints (routers)
-│   ├── services/                # Business logic & orchestration
-│   ├── schemas/                 # Pydantic request/response models
-│   ├── repositories/            # Data access layer
+│   ├── service/                 # Business logic & orchestration
+│   ├── schemas/                 # Pydantic request/response & domain models
+│   ├── repository/              # Data access layer
 │   ├── models/                  # Database models (SQLAlchemy)
-│   ├── ai/                      # AI provider abstraction
-│   ├── middlewares/             # Error handling, logging, rate limits
-│   ├── dependencies/            # FastAPI dependency injection
+│   ├── agents/                  # Pydantic AI agent definitions
+│   ├── middlewares/             # Correlation IDs, error handling, wide events, logging
+│   ├── dependencies/            # FastAPI dependency injection (DB, services, auth, rate limit)
 │   ├── exceptions/              # Custom exception classes
-│   └── utils/                   # Validation & helper functions
+│   ├── security/                # Neon JWT auth & prompt sanitization
+│   └── tasks/                   # Background tasks (history compaction)
 ├── tests/                       # Unit & integration tests
-├── scripts/                     # Database seeding & utility scripts
-├── ruff.yaml                    # Linter configuration
+├── Dockerfile                   # Container build definition
+├── docker-compose.yml           # Compose service definition
 ├── .env.example                 # Example environment configuration
-├── .env.local                   # Local development environment
 ├── .env                         # Environment configuration (gitignored)
-└── pyproject.toml               # Dependencies
+└── pyproject.toml               # Dependencies (managed by uv)
 ```
 
 ## Quick Start
@@ -93,10 +94,16 @@ ai-server/
    - `AI_PROVIDER_API_KEY` - Your AI provider's API key
    - `AI_PROVIDER_BASE_URL` - (Optional) Custom base URL for your AI provider
 
-3. **Start the development server:**
+3. **Apply database migrations:**
 
    ```bash
-   uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+   alembic upgrade head
+   ```
+
+4. **Start the development server:**
+
+   ```bash
+   fastapi dev src/main.py
    ```
 
    The API will be available at `http://localhost:8000`
@@ -130,47 +137,39 @@ All configuration is managed through a `.env` file in the project root. An examp
 3. Copy the connection string from the dashboard
 4. Set as `DATABASE_URL` in `.env`
 
-**AI Provider API Key:**
-
-- Obtain from your AI provider (OpenAI, Anthropic, etc.)
-- Set as `AI_PROVIDER_API_KEY` in `.env`
 **AI Provider Configuration:**
 
-- Obtain an API key from your AI provider (OpenAI, Anthropic, etc.) and set `AI_PROVIDER_API_KEY` in `.env`.
+- Obtain an API key from your AI provider (OpenAI, Anthropic, Google, etc.) and set `AI_PROVIDER_API_KEY` in `.env`.
 - Set `AI_PROVIDER_BASE_URL` in `.env` to the provider endpoint.
-- Specify the model identifier to use with `AI_PROVIDER_MODEL` (e.g. `gpt-4o-mini`, `claude-2`).
-- If using Neon Auth/Data API workflows, set `AUTH_URL` to your Neon Auth base URL so the SDK can retrieve JWTs for Data API calls.
+- Specify the model identifier with `AI_PROVIDER_MODEL` (e.g. `gpt-4o-mini`, `gemini-2.5-flash`).
+- Set `AUTH_URL` to your Neon Auth base URL so incoming JWTs can be verified against Neon's JWKS.
+
+**Observability (optional):**
+
+- Set `AXIOM_INGEST_TOKEN` and `AXIOM_INGEST_DATASET` to ship wide events to Axiom.
+- `ENVIRONMENT`, `SERVICE_VERSION`, and `COMMIT_HASH` are attached to every emitted wide event.
 
 ## API Endpoints
 
-### POST /api/v1/generate
+### POST /api/v2/generate/stream
 
-Accept a user message in a conversation and return AI stakeholder response.
-Requires `Authorization: Bearer <token>`.
-Current implementation note: request body uses `conversation_id` and `content`; response includes `conversation_id`, `content`, and `type`.
+Accepts a user message in a conversation and streams the AI stakeholder response via Server-Sent Events (SSE).
+Requires `Authorization: Bearer <token>` (Neon Auth JWT). The authenticated `user_id` is derived from the token; the `rate_limit` dependency enforces a per-user sliding window. A background task runs token counting and history compaction after the response is sent.
 
 **Request:**
 
 ```json
 {
   "conversation_id": "string",
-  "user_id": "string",
   "content": "string"
 }
 ```
 
-**Response:**
+**Response:** `text/event-stream` — the body is a stream of SSE events containing the stakeholder response as it is generated.
 
-```json
-{
-  "conversation_id": "string",
-  "user_id": "string",
-  "content": "string",
-  "type": "MessageType",
-  "created_at": "timestamp",
-  "updated_at": "timestamp"
-}
-```
+### GET /health and GET /ready
+
+Liveness and readiness probes. Return `{"status": "ok"}`.
 
 ## Logging with Wide Events
 
@@ -466,11 +465,15 @@ alembic upgrade head
 
 ## Tech Stack
 
-- **Python 3.13** - Runtime
-- **FastAPI 0.128.4+** - REST API framework
-- **Pydantic AI Slim** - AI integration with OpenAI backend
+- **Python 3.13+** - Runtime
+- **FastAPI 0.135+** - REST API framework (with Server-Sent Events streaming)
+- **Pydantic AI Slim** (with Google backend) - Agent framework for stakeholder simulation
 - **Neon PostgreSQL** - Serverless Postgres database
-- **SQLAlchemy** - ORM for database queries
+- **SQLAlchemy 2.0** - Async ORM with typed mapped columns
+- **Alembic** - Database migrations
+- **PyJWT + cryptography** - Neon Auth JWT verification
+- **Axiom** - Wide event ingestion for observability
+- **uv** - Dependency and environment management
 
 ## Documentation
 

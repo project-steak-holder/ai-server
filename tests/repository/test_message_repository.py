@@ -1,5 +1,6 @@
 """Unit tests for MessageRepository."""
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -45,6 +46,17 @@ async def test_get_messages_by_conversation_id():
     session.execute.return_value = RepoResultScalarsAll(["m1", "m2"])
     messages = await repo.get_messages_by_conversation_id("c1", "u1")
     assert messages == ["m1", "m2"]
+
+
+# Test get_messages_after
+@pytest.mark.anyio
+async def test_get_messages_after():
+    session = AsyncMock()
+    repo = MessageRepository(session)
+    session.execute.return_value = RepoResultScalarsAll(["m3", "m4"])
+    after = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    messages = await repo.get_messages_after("c1", after)
+    assert messages == ["m3", "m4"]
 
 
 # Test delete_message

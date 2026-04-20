@@ -3,13 +3,14 @@ Test fixtures for pytest.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
 from datetime import datetime, timezone
 
 from src.service.agent_service import AgentService
 from src.service.message_service import MessageService
 from src.service.model_service import ModelService
+from src.service.summary_service import SummaryService
 from src.repository.message_repository import MessageRepository
 from src.models.message import Message as MessageModel
 from src.schemas.message_model import MessageType
@@ -124,7 +125,7 @@ def message_service(mock_message_repository):
 
 
 @pytest.fixture
-def agent_service(mock_message_service):
+def agent_service(mock_message_service, mock_summary_repository):
     """Create an AgentService with mocked dependencies."""
     mock_model_service = MagicMock(spec=ModelService)
     # Provide real Persona and Project for _load_model
@@ -249,25 +250,35 @@ def agent_service(mock_message_service):
     mock_sentiment_service.get_persona_w_current_sentiment = AsyncMock(
         return_value=persona
     )
+    summary_service = SummaryService(summary_repository=mock_summary_repository)
     return AgentService(
         model_service=mock_model_service,
         message_service=mock_message_service,
         sentiment_service=mock_sentiment_service,
+        summary_service=summary_service,
     )
 
 
 @pytest.fixture
 def mock_compactor():
     """Mock HistoryCompactorService to avoid API key requirement in tests."""
-    from unittest.mock import patch
-
     instance = MagicMock()
-    instance.summarize_old_messages = AsyncMock(return_value=[])
+    instance.summarize = AsyncMock(return_value="Summary of old messages")
+    instance.estimate_tokens = MagicMock(side_effect=lambda content: len(content) // 4)
     with patch(
         "src.service.agent_service.HistoryCompactorService",
-        return_value=instance,
-    ):
+    ) as mock_cls:
+        mock_cls.return_value = instance
         yield instance
+
+
+@pytest.fixture
+def mock_summary_repository():
+    """Create a mock SummaryRepository."""
+    mock = MagicMock()
+    mock.get_conversation_summary = AsyncMock(return_value=None)
+    mock.update_summary = AsyncMock(return_value=None)
+    return mock
 
 
 @pytest.fixture
