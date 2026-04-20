@@ -5,7 +5,7 @@ Simulates a project stakeholder persona for interactive conversations.
 
 import os
 import re
-from typing import cast, AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, ModelMessage, ModelResponse
 from pydantic_ai.models.google import GoogleModel
@@ -89,7 +89,7 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
     provider = GoogleProvider(api_key=api_key)
     model = GoogleModel(model_name=model_name, provider=provider)
 
-    agent = Agent(
+    agent: Agent[AgentDependencies, AgentResponse] = Agent(
         model=model,
         deps_type=AgentDependencies,
         output_type=AgentResponse,
@@ -180,8 +180,7 @@ def create_stakeholder_agent() -> Agent[AgentDependencies, AgentResponse]:
             f"{notes_str}\n\n"
         )
 
-    # nested cast to ensure type safety(safe for mypy in CI/CD pipeline)
-    return cast(Agent[AgentDependencies, AgentResponse], cast(object, agent))
+    return agent
 
 
 # Singleton instance
