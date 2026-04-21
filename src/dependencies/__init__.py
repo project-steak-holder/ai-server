@@ -8,6 +8,9 @@ from .database import (
     get_sentiment_repository,
     SentimentRepository,
     SentimentRepositoryClass,
+    get_summary_repository,
+    SummaryRepository,
+    SummaryRepositoryClass,
 )
 from .services import (
     get_agent_service,
@@ -23,7 +26,6 @@ from .services import (
 __all__ = [
     "AgentService",
     "AuthenticatedUser",
-    "AuthenticatedUser",
     "CurrentUser",
     "get_agent_service",
     "get_current_user",
@@ -32,7 +34,10 @@ __all__ = [
     "get_model_service",
     "get_sentiment_service",
     "get_sentiment_repository",
+    "get_summary_repository",
     "SentimentRepository",
+    "SummaryRepository",
+    "SummaryRepositoryClass",
     "get_wide_event",
     "MessageRepository",
     "MessageRepositoryClass",

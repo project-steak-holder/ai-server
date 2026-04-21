@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import select
 from src.repository.base import BaseCRUDRepository
 from src.models.message import Message
@@ -8,6 +9,8 @@ __all__ = ["MessageRepository"]
 
 class MessageRepository(BaseCRUDRepository[Message]):
     """Repository for managing database operations related to messages."""
+
+    model = Message
 
     async def save_message(
         self,
@@ -33,6 +36,29 @@ class MessageRepository(BaseCRUDRepository[Message]):
             select(Message)
             .where(Message.conversation_id == conversation_id)
             .where(Message.user_id == user_id)
+            .order_by(Message.created_at)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_all_messages_by_conversation(
+        self, conversation_id: str
+    ) -> list[Message]:
+        """Fetch all messages for a conversation, ordered by creation time."""
+        return await self.get_all_by_field(
+            "conversation_id",
+            conversation_id,
+            order_by=Message.created_at,
+        )
+
+    async def get_messages_after(
+        self, conversation_id: str, after: datetime
+    ) -> list[Message]:
+        """Fetch messages created after the given timestamp, ordered by creation time."""
+        stmt = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .where(Message.created_at > after)
             .order_by(Message.created_at)
         )
         result = await self.session.execute(stmt)

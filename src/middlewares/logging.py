@@ -10,6 +10,10 @@ def setup_logger():
     logger = logging.getLogger("wide_event")
     logger.setLevel(logging.INFO)
 
+    if os.getenv("DISABLE_LOG_INGESTION") == "1" or os.getenv("CI") == "true":
+        # Do not setup Axiom in test or CI
+        return
+
     token = os.environ.get("AXIOM_INGEST_TOKEN")
     dataset = os.environ.get("AXIOM_INGEST_DATASET")
 

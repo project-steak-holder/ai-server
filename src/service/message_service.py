@@ -48,3 +48,18 @@ class MessageService:
             conversation_id=conversation_id,
             user_id=user_id,
         )
+
+    async def get_all_messages_by_conversation(
+        self, conversation_id: str
+    ) -> list[Message]:
+        """Retrieve all messages for a conversation (background/internal use)."""
+        return await self.message_repository.get_all_messages_by_conversation(
+            conversation_id=conversation_id,
+        )
+
+    async def get_messages_after(self, conversation_id: str, after) -> list[Message]:
+        """Retrieve messages created after a timestamp (background/internal use)."""
+        return await self.message_repository.get_messages_after(
+            conversation_id=conversation_id,
+            after=after,
+        )
