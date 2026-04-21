@@ -11,8 +11,8 @@ from src.middlewares.events import EventMiddleware
 from src.middlewares.logging import setup_logger
 
 # Reduce uvicorn and starlette errors logging levels to avoid cluttering logs
-logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
-logging.getLogger("starlette.middleware.errors").setLevel(logging.CRITICAL)
+logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+logging.getLogger("starlette.middleware.errors").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
