@@ -15,6 +15,7 @@ from pydantic_ai import (
     UserPromptPart,
 )
 from pydantic import ValidationError
+from src.exceptions.context_load_exception import ContextLoadException
 from src.middlewares.events import add_event_context, wide_event
 from src.schemas.message_model import Message
 from src.schemas.persona_model import Persona
@@ -93,7 +94,13 @@ class AgentService:
                 Message.model_validate(msg, from_attributes=True) for msg in db_messages
             ]
         except ValidationError as ve:
-            raise Exception(f"Validation error in message history: {ve}") from ve
+            raise ContextLoadException(
+                message="Failed to load conversation history: message data did not match schema",
+                details={
+                    "conversation_id": conversation_id,
+                    "validation_errors": ve.errors(),
+                },
+            ) from ve
 
     @wide_event("save_user_message")
     async def save_user_message(

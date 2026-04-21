@@ -26,7 +26,6 @@ from .services import (
 __all__ = [
     "AgentService",
     "AuthenticatedUser",
-    "AuthenticatedUser",
     "CurrentUser",
     "get_agent_service",
     "get_current_user",
